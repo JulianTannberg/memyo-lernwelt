@@ -497,7 +497,7 @@ function openProfileOverlay() {
         </div>
       </div>
       ${profiles.length ? `<div class="saved-profiles"><h3>Gespeicherte Namen</h3><div class="saved-profile-list">${profiles.slice(0,8).map(item => `<button class="saved-profile-chip" data-profile-name="${escapeHtml(item.name)}" data-profile-avatar="${item.avatar || 'pips'}" data-profile-accessory="${item.selectedAccessory || 'none'}" type="button"><span class="saved-avatar-wrap"><span class="saved-avatar-wrap"><img src="${avatarAsset(item.avatar || 'pips','wait')}" alt="">${accessoryBadge(item.selectedAccessory || 'none')}</span>${accessoryBadge(item.selectedAccessory || 'none')}</span><span>${escapeHtml(item.name)}</span><small>${item.bestScore || 0} Punkte</small></button>`).join('')}</div></div>` : ''}
-      <div class="button-row"><button class="primary-button" id="saveProfileButton" type="button">Speichern</button><button class="secondary-button" id="closeProfileButton" type="button">Schließen</button></div>
+      <div class="button-row profile-actions"><button class="primary-button" id="saveProfileButton" type="button">Speichern und starten</button><button class="secondary-button" id="closeProfileButton" type="button">Schließen</button></div>
       <p class="overlay-note" id="profileOverlayNote">Ab 20 Punkten werden erste Extras freigeschaltet.</p>
     </div>`;
 
@@ -536,7 +536,7 @@ function openProfileOverlay() {
   profileOverlay.querySelector('#closeProfileButton').addEventListener('click', close);
   profileOverlay.onclick = event => { if (event.target === profileOverlay) close(); };
   refreshAccessoryChoices(activeUnlocked);
-  profileOverlay.querySelector('#saveProfileButton').addEventListener('click', () => {
+  const saveProfile = () => {
     const result = saveCurrentProfile(profileOverlay.querySelector('#playerNameInput').value, draftAvatar, draftAccessory);
     const note = profileOverlay.querySelector('#profileOverlayNote');
     if (!result.ok) {
@@ -546,6 +546,13 @@ function openProfileOverlay() {
     note.textContent = 'Gespeichert.';
     render();
     setTimeout(close, 250);
+  };
+  profileOverlay.querySelector('#saveProfileButton').addEventListener('click', saveProfile);
+  profileOverlay.querySelector('#playerNameInput').addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      saveProfile();
+    }
   });
 }
 

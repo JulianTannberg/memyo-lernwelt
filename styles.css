@@ -1128,3 +1128,43 @@ body {
 
 
 .adaptive-note{margin:10px 0 0;color:#6b7785;font-size:.92rem;line-height:1.35;}
+
+
+/* --- v12 profile save fix --- */
+.profile-dialog {
+  --accent: #94bbd9;
+  padding-bottom: 96px;
+}
+.profile-dialog .primary-button {
+  background: #7faed2;
+  color: #ffffff;
+  border: 0;
+  min-width: 190px;
+  box-shadow: 0 8px 18px rgba(127, 174, 210, .35);
+}
+.profile-dialog .profile-actions {
+  position: sticky;
+  bottom: -1px;
+  z-index: 5;
+  margin: 22px -8px -82px;
+  padding: 14px 8px 18px;
+  background: linear-gradient(180deg, rgba(255,253,249,0), #fffdf9 25%);
+  justify-content: center;
+}
+.profile-dialog .profile-actions .primary-button,
+.profile-dialog .profile-actions .secondary-button {
+  flex: 1 1 180px;
+}
+@media (max-width: 560px) {
+  .profile-dialog { padding-bottom: 108px; }
+  .profile-dialog .profile-actions {
+    margin-left: -4px;
+    margin-right: -4px;
+    margin-bottom: -94px;
+  }
+  .profile-dialog .profile-actions .primary-button,
+  .profile-dialog .profile-actions .secondary-button {
+    width: 100%;
+    flex-basis: 100%;
+  }
+}

@@ -1,14 +1,9 @@
-MEMYO LERNWELT – TESTVERSION 11
+MEMYO LERNWELT – TESTVERSION 12
 
-NEU IN VERSION 11:
-- Pips im neuen Sticker-Stil eingebaut
-- Sprung / Hochflug deutlich langsamer
-- Rennen minimal langsamer
-- das kleine 1x1 ist jetzt in EINEM gemeinsamen Lernpfad
-- die Reihen werden automatisch von leicht nach schwer freigeschaltet
-- häufig falsch gelöste Aufgaben tauchen öfter wieder auf
-- lokal gespeicherter Lernstand entscheidet über den Schwierigkeitsgrad
+BEHOBEN:
+- Der Speichern-Button in der Namens- und Figurenwahl war durch eine fehlende Akzentfarbe unsichtbar.
+- Der Button ist jetzt deutlich sichtbar und heißt „Speichern und starten“.
+- Die Aktionsleiste bleibt beim Scrollen unten sichtbar.
+- Die Eingabetaste speichert ebenfalls.
 
-HINWEIS:
-- den kompletten Ordnerinhalt hochladen und alles ersetzen
-- danach die Seite mit ?v=11 öffnen
+Bitte gesamten Ordnerinhalt hochladen und danach mit ?v=12 öffnen.
