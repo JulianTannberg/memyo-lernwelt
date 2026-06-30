@@ -162,6 +162,7 @@ function currentTopic() { return currentSubject()?.topics.find(t => t.id === vie
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 
 function render() {
+  document.body.classList.toggle('game-mode', view.screen === 'topic' && view.tab === 'game');
   backButton.classList.toggle('hidden', view.screen === 'home');
   if (view.screen === 'home') renderHome();
   if (view.screen === 'subject') renderSubject();
@@ -237,23 +238,25 @@ function renderTopic() {
   const subject = currentSubject();
   const topic = currentTopic();
   const value = topicProgress(topic);
+  const isGame = view.tab === 'game';
+  document.body.classList.toggle('game-mode', isGame);
   app.innerHTML = `
-    <section class="page-head" style="--accent:${subject.color}">
+    ${isGame ? '' : `<section class="page-head" style="--accent:${subject.color}">
       <p class="crumb">${subject.name} · ${topic.name}</p>
       <h2>${topic.name}</h2>
-    </section>
-    <div class="topic-layout" style="--accent:${subject.color}">
-      <section class="panel">
-        <div class="tabbar" role="tablist" aria-label="Lernbereiche">
+    </section>`}
+    <div class="topic-layout ${isGame ? 'game-focus-layout' : ''}" style="--accent:${subject.color}">
+      <section class="panel ${isGame ? 'game-panel' : ''}">
+        ${isGame ? `<div class="game-topic-label">${escapeHtml(subject.name)} · ${escapeHtml(topic.name)}</div>` : `<div class="tabbar" role="tablist" aria-label="Lernbereiche">
           ${tabButton('learn','Lernen')}${tabButton('practice','Üben')}${tabButton('game','Spielen')}
-        </div>
+        </div>`}
         <div id="topicContent"></div>
       </section>
-      <aside class="panel side-panel">
+      ${isGame ? '' : `<aside class="panel side-panel">
         <div class="stat-card"><span>Fortschritt</span><strong>${value}%</strong><div class="progress-track"><div class="progress-fill" style="--progress:${value}%"></div></div></div>
         <div class="stat-card"><span>Richtig gelöst</span><strong>${new Set(progress[topic.id]?.solved || []).size}/${topic.questions.length}</strong></div>
         <p class="notice">Das nächste Thema bleibt immer offen. Der Fortschritt dient nur als Orientierung.</p>
-      </aside>
+      </aside>`}
     </div>`;
   app.querySelectorAll('[data-tab]').forEach(btn => btn.addEventListener('click', () => { view.tab=btn.dataset.tab; if(view.tab!=='practice') practice=null; if(view.tab!=='game') game=null; renderTopic(); }));
   renderTopicContent();
@@ -330,9 +333,10 @@ function showBowling(done) {
 }
 
 
+
 function gameDifficulty(index) {
-  if (index < 3) return { label: 'leicht', max: 5 };
-  if (index < 6) return { label: 'mittel', max: 10 };
+  if (index < 4) return { label: 'leicht', max: 5 };
+  if (index < 8) return { label: 'mittel', max: 10 };
   return { label: 'schwer', max: 15 };
 }
 
@@ -347,15 +351,61 @@ function shuffle(array) {
 
 function createStars() {
   return [
-    { x: 14, y: 19, lit: false },
-    { x: 28, y: 11, lit: false },
-    { x: 41, y: 22, lit: false },
-    { x: 54, y: 12, lit: false },
-    { x: 67, y: 21, lit: false },
-    { x: 79, y: 13, lit: false },
-    { x: 90, y: 24, lit: false },
-    { x: 48, y: 6, lit: false }
+    { x: 9,  y: 10, lit: false },
+    { x: 19, y: 18, lit: false },
+    { x: 30, y: 9,  lit: false },
+    { x: 41, y: 17, lit: false },
+    { x: 52, y: 8,  lit: false },
+    { x: 63, y: 18, lit: false },
+    { x: 74, y: 9,  lit: false },
+    { x: 85, y: 17, lit: false },
+    { x: 93, y: 8,  lit: false },
+    { x: 48, y: 24, lit: false }
   ];
+}
+
+function uniqueOptions(correct, candidates) {
+  const seen = new Set([String(correct)]);
+  const values = [String(correct)];
+  for (const candidate of candidates) {
+    const value = String(candidate);
+    if (!seen.has(value)) {
+      seen.add(value);
+      values.push(value);
+    }
+    if (values.length === 4) break;
+  }
+  while (values.length < 4) {
+    const fallback = Number(correct) + values.length * 3;
+    if (!seen.has(String(fallback))) values.push(String(fallback));
+  }
+  return shuffle(values);
+}
+
+function buildGameRounds(topic, count = 10) {
+  if (currentSubject()?.id === 'mathe' && topic.id === 'ganze-zahlen') {
+    const rounds = [];
+    for (let i = 0; i < count; i++) {
+      const isAddition = i % 2 === 0;
+      const a = Math.floor(Math.random() * 31) - 15;
+      const b = Math.floor(Math.random() * 18) + 3;
+      const correct = isAddition ? a + b : a - b;
+      const q = `${a < 0 ? '−' + Math.abs(a) : a} ${isAddition ? '+' : '−'} ${b} = ?`;
+      rounds.push({
+        id: `m-gz-game-${Date.now()}-${i}`,
+        q,
+        options: uniqueOptions(correct, [correct + 1, correct - 1, -correct, correct + 5, correct - 5]),
+        correct: String(correct),
+        hint: isAddition ? 'Gehe auf dem Zahlenstrahl nach rechts.' : 'Ziehe die zweite Zahl ab.'
+      });
+    }
+    return rounds;
+  }
+
+  const source = shuffle(topic.questions);
+  const rounds = [];
+  while (rounds.length < count) rounds.push(...shuffle(source));
+  return rounds.slice(0, count);
 }
 
 let activeGameKeyHandler = null;
@@ -373,16 +423,13 @@ function cleanupGameInput() {
 
 function startGame() {
   const topic = currentTopic();
-  const source = shuffle(topic.questions);
-  const rounds = [];
-  while (rounds.length < 8) rounds.push(...shuffle(source));
   game = {
-    rounds: rounds.slice(0, 8),
+    rounds: buildGameRounds(topic, 10),
     index: 0,
     points: 0,
     stars: createStars(),
     phase: 'question',
-    pipsX: 18,
+    pipsX: 50,
     dir: 1,
     loopId: null,
     finished: false,
@@ -401,21 +448,20 @@ function renderGame() {
     const lit = game.stars.filter(star => star.lit).length;
     const maxPoints = game.rounds.reduce((sum, _, i) => sum + gameDifficulty(i).max, 0);
     content.innerHTML = `
-      <div class="question-wrap">
-        <div class="question-summary">
-          <p class="eyebrow">Runde abgeschlossen</p>
-          <h2>${game.points} Punkte</h2>
-          <p class="lead">${lit} von ${game.stars.length} Sternen leuchten. Du hast ${game.summary.correctAnswers} Aufgaben gelöst.</p>
-          <div class="game-summary-grid">
-            <div class="summary-box"><span>Sterne</span><strong>${lit}/${game.stars.length}</strong></div>
-            <div class="summary-box"><span>Versuche</span><strong>${game.rounds.length}</strong></div>
-            <div class="summary-box"><span>Maximal</span><strong>${maxPoints}</strong></div>
-            <div class="summary-box"><span>Fehler beim Lösen</span><strong>${game.summary.totalErrors}</strong></div>
-          </div>
-          <div class="button-row">
-            <button class="primary-button" id="restartGame" type="button">Noch einmal spielen</button>
-            <button class="secondary-button" id="backLearn" type="button">Zum Lernen</button>
-          </div>
+      <div class="game-summary-screen">
+        <div class="summary-stars">${game.stars.map(star => `<span class="${star.lit ? 'lit' : ''}">★</span>`).join('')}</div>
+        <p class="eyebrow">Runde abgeschlossen</p>
+        <h2>${game.points} Punkte</h2>
+        <p class="lead">${lit} von ${game.stars.length} Sternen leuchten.</p>
+        <div class="game-summary-grid">
+          <div class="summary-box"><span>Aufgaben</span><strong>${game.summary.correctAnswers}/${game.rounds.length}</strong></div>
+          <div class="summary-box"><span>Sterne</span><strong>${lit}/${game.stars.length}</strong></div>
+          <div class="summary-box"><span>Maximal</span><strong>${maxPoints}</strong></div>
+          <div class="summary-box"><span>Lösefehler</span><strong>${game.summary.totalErrors}</strong></div>
+        </div>
+        <div class="button-row summary-buttons">
+          <button class="primary-button" id="restartGame" type="button">Noch einmal spielen</button>
+          <button class="secondary-button" id="backLearn" type="button">Zum Lernen</button>
         </div>
       </div>`;
     document.querySelector('#restartGame').addEventListener('click',()=>{game=null;renderTopic();});
@@ -426,33 +472,45 @@ function renderGame() {
   const q = game.rounds[game.index];
   const difficulty = gameDifficulty(game.index);
   const litCount = game.stars.filter(star => star.lit).length;
-  const remaining = game.stars.length - litCount;
-  const result = game.lastResult ? `
-      <div class="mini-result ${game.lastResult.points > 0 ? 'good' : 'miss'}">${escapeHtml(game.lastResult.message)}</div>` : '';
-  const prompt = game.phase === 'question'
-    ? 'Löse zuerst die Aufgabe.'
-    : game.phase === 'run'
-      ? 'Jetzt im richtigen Moment tippen oder Leertaste drücken.'
-      : 'Pips fliegt …';
+  const questionVisible = game.phase === 'question';
+  const runVisible = game.phase === 'run';
 
   content.innerHTML = `
-    <div class="question-wrap game-wrap">
-      <div class="game-status board-status">
-        <span><strong>Punkte:</strong> ${game.points}</span>
-        <span><strong>Sterne:</strong> ${litCount}/${game.stars.length}</span>
-        <span><strong>Aufgabe:</strong> ${game.index + 1}/${game.rounds.length}</span>
-      </div>
-      <div class="pips-stage" id="pipsStage" aria-label="Pips-Spielbereich">
+    <div class="pips-game-shell">
+      <div class="pips-stage" id="pipsStage" aria-label="Pips Sternenspiel">
         <div class="stage-sky"></div>
-        <div class="stars-layer">
+        <div class="game-hud">
+          <span><strong>${game.points}</strong> Punkte</span>
+          <span>${litCount}/${game.stars.length} Sterne</span>
+          <span>${game.index + 1}/${game.rounds.length}</span>
+        </div>
+
+        <div class="stars-layer" aria-hidden="true">
           ${game.stars.map((star, i) => `
             <div class="target-star ${star.lit ? 'lit' : 'dark'}" data-star-index="${i}" style="left:${star.x}%; top:${star.y}%">
               <span class="star-glow"></span>
               <span class="star-core">★</span>
             </div>`).join('')}
         </div>
+
+        ${questionVisible ? `
+          <section class="game-question-card" aria-live="polite">
+            <div class="question-topline">
+              <span class="difficulty-pill">${difficulty.label}</span>
+              <span>max. ${difficulty.max} Punkte</span>
+            </div>
+            ${game.lastResult ? `<div class="result-line ${game.lastResult.points > 0 ? 'good' : 'miss'}">${escapeHtml(game.lastResult.message)}</div>` : ''}
+            <div class="game-question">${escapeHtml(q.q)}</div>
+            <div class="game-answers">
+              ${q.options.map(o => `<button class="game-answer-button" data-game-answer="${escapeHtml(o)}" type="button">${escapeHtml(o)}</button>`).join('')}
+            </div>
+            <div class="game-feedback ${game.solvingErrors ? 'show' : ''}" id="gameFeedback">${game.solvingErrors ? `Noch nicht. ${escapeHtml(q.hint)}` : ''}</div>
+          </section>` : ''}
+
+        ${runVisible ? `<div class="flight-prompt">Jetzt tippen, klicken oder Leertaste drücken!</div>` : ''}
+
         <div class="stage-ground"></div>
-        <div id="pips" class="pips-avatar ${game.phase === 'run' ? 'running' : 'waiting'}" style="left:${game.pipsX}%">
+        <div id="pips" class="pips-avatar ${runVisible ? 'running' : 'waiting'}" style="left:${game.pipsX}%" aria-label="Pips">
           <span class="ear left"></span>
           <span class="ear right"></span>
           <span class="wing left"></span>
@@ -461,20 +519,8 @@ function renderGame() {
           <span class="body"></span>
           <span class="eye left"></span>
           <span class="eye right"></span>
+          <span class="nose"></span>
         </div>
-        <div class="stage-prompt">${escapeHtml(prompt)}</div>
-      </div>
-      <div class="question-bar">
-        <div class="question-meta-row">
-          <span class="pill">${difficulty.label}</span>
-          <span class="pill">0 / 5 / 10 / 15 je nach Schwierigkeit</span>
-        </div>
-        ${result}
-        <div class="question compact">${escapeHtml(q.q)}</div>
-        <div class="answers ${game.phase !== 'question' ? 'disabled' : ''}">
-          ${q.options.map(o => `<button class="answer-button" ${game.phase !== 'question' ? 'disabled' : ''} data-game-answer="${escapeHtml(o)}" type="button">${escapeHtml(o)}</button>`).join('')}
-        </div>
-        <div class="feedback ${game.solvingErrors ? 'try' : ''}" id="gameFeedback" aria-live="polite">${game.phase === 'question' && game.solvingErrors ? `Noch nicht. Tipp: ${escapeHtml(q.hint)}` : ''}</div>
       </div>
     </div>`;
 
@@ -489,51 +535,41 @@ function mountPipsGame() {
 
   pips.style.left = `${game.pipsX}%`;
 
-  activeGameKeyHandler = (event) => {
-    if ((event.code === 'Space' || event.code === 'Enter') && game?.phase === 'run') {
-      event.preventDefault();
-      triggerPipsFlight();
-    }
-  };
-  window.addEventListener('keydown', activeGameKeyHandler);
-
-  stage.addEventListener('click', () => {
-    if (game?.phase === 'run') triggerPipsFlight();
-  });
-
-  if (game.phase === 'run') startPipsRun();
+  if (game.phase === 'run') {
+    activeGameKeyHandler = (event) => {
+      if ((event.code === 'Space' || event.code === 'Enter') && game?.phase === 'run') {
+        event.preventDefault();
+        triggerPipsFlight();
+      }
+    };
+    window.addEventListener('keydown', activeGameKeyHandler);
+    stage.addEventListener('pointerdown', event => {
+      if (game?.phase === 'run') {
+        event.preventDefault();
+        triggerPipsFlight();
+      }
+    });
+    startPipsRun();
+  }
 }
 
 function startPipsRun() {
-  cleanupGameInput();
   const pips = document.querySelector('#pips');
-  const stage = document.querySelector('#pipsStage');
-  if (!pips || !stage || !game) return;
-
-  activeGameKeyHandler = (event) => {
-    if ((event.code === 'Space' || event.code === 'Enter') && game?.phase === 'run') {
-      event.preventDefault();
-      triggerPipsFlight();
-    }
-  };
-  window.addEventListener('keydown', activeGameKeyHandler);
-  stage.addEventListener('click', () => {
-    if (game?.phase === 'run') triggerPipsFlight();
-  }, { once: false });
+  if (!pips || !game) return;
 
   let last = null;
-  const minX = 10;
-  const maxX = 92;
-  const speed = 0.025;
+  const minX = 9;
+  const maxX = 91;
+  const speed = 0.046 + Math.min(game.index, 9) * 0.0015;
 
   const frame = (ts) => {
     if (!game || game.phase !== 'run') return;
     if (last == null) last = ts;
-    const dt = ts - last;
+    const dt = Math.min(ts - last, 40);
     last = ts;
     game.pipsX += game.dir * dt * speed;
-    if (game.pipsX >= maxX) { game.pipsX = maxX; game.dir = -1; }
-    if (game.pipsX <= minX) { game.pipsX = minX; game.dir = 1; }
+    if (game.pipsX >= maxX) { game.pipsX = maxX; game.dir = -1; pips.classList.add('facing-left'); }
+    if (game.pipsX <= minX) { game.pipsX = minX; game.dir = 1; pips.classList.remove('facing-left'); }
     pips.style.left = `${game.pipsX}%`;
     game.loopId = requestAnimationFrame(frame);
   };
@@ -544,23 +580,19 @@ function checkGameAnswer(button, q) {
   if (!game || game.phase !== 'question') return;
   const feedback = document.querySelector('#gameFeedback');
   if (button.dataset.gameAnswer === q.correct) {
-    button.classList.add('correct');
     game.summary.correctAnswers++;
     game.solvingErrors = 0;
     game.phase = 'run';
-    markSolved(currentTopic(), q.id);
-    if (feedback) {
-      feedback.className = 'feedback good';
-      feedback.textContent = 'Richtig! Jetzt ein Tipp oder Klick für einen geraden Flug nach oben.';
-    }
-    setTimeout(() => renderGame(), 200);
+    if (currentTopic().questions.some(item => item.id === q.id)) markSolved(currentTopic(), q.id);
+    button.classList.add('correct');
+    setTimeout(() => renderGame(), 180);
   } else {
     game.solvingErrors++;
     game.summary.totalErrors++;
     button.classList.add('wrong');
     if (feedback) {
-      feedback.className = 'feedback try';
-      feedback.textContent = `Noch nicht. Tipp: ${q.hint}`;
+      feedback.className = 'game-feedback show';
+      feedback.textContent = `Noch nicht. ${q.hint}`;
     }
   }
 }
@@ -576,59 +608,64 @@ function triggerPipsFlight() {
 
   const difficulty = gameDifficulty(game.index);
   const stageRect = stage.getBoundingClientRect();
-  const pipsPx = (game.pipsX / 100) * stageRect.width;
-  const darkStars = game.stars
-    .map((star, index) => ({ ...star, index, dx: Math.abs((star.x / 100) * stageRect.width - pipsPx) }))
-    .filter(star => !star.lit)
-    .sort((a, b) => a.dx - b.dx);
+  const pipsCenterX = (game.pipsX / 100) * stageRect.width;
+  const hitRange = Math.max(20, Math.min(27, stageRect.width * 0.035));
 
+  const candidates = game.stars
+    .map((star, index) => ({
+      ...star,
+      index,
+      dx: Math.abs((star.x / 100) * stageRect.width - pipsCenterX)
+    }))
+    .filter(star => star.dx <= hitRange)
+    .sort((a, b) => b.y - a.y);
+
+  const target = candidates[0] || null;
   let awarded = 0;
-  let targetIndex = null;
-  if (darkStars.length) {
-    const nearest = darkStars[0];
-    const dx = nearest.dx;
-    if (difficulty.max === 5) {
-      if (dx <= 22) { awarded = 5; targetIndex = nearest.index; }
-    } else if (difficulty.max === 10) {
-      if (dx <= 12) { awarded = 10; targetIndex = nearest.index; }
-      else if (dx <= 22) { awarded = 5; targetIndex = nearest.index; }
+  let message = 'Knapp daneben – 0 Punkte';
+
+  if (target) {
+    if (target.lit) {
+      message = 'Dieser Stern leuchtet schon – 0 Punkte';
     } else {
-      if (dx <= 8) { awarded = 15; targetIndex = nearest.index; }
-      else if (dx <= 15) { awarded = 10; targetIndex = nearest.index; }
-      else if (dx <= 22) { awarded = 5; targetIndex = nearest.index; }
+      const rawPoints = target.dx <= 6 ? 15 : target.dx <= 14 ? 10 : 5;
+      awarded = Math.min(rawPoints, difficulty.max);
+      message = `Treffer! +${awarded} Punkte`;
     }
   }
 
+  const flightDistance = Math.max(220, stageRect.height - 95);
   pips.classList.add('flying');
-  pips.style.bottom = '134px';
+  const animation = pips.animate([
+    { transform: pips.classList.contains('facing-left') ? 'scaleX(-1) translateY(0)' : 'translateY(0)' },
+    { transform: pips.classList.contains('facing-left') ? `scaleX(-1) translateY(-${flightDistance}px)` : `translateY(-${flightDistance}px)`, offset: .48 },
+    { transform: pips.classList.contains('facing-left') ? 'scaleX(-1) translateY(0)' : 'translateY(0)' }
+  ], {
+    duration: 920,
+    easing: 'cubic-bezier(.32,.72,.28,1)'
+  });
 
   setTimeout(() => {
-    if (targetIndex !== null) {
-      game.stars[targetIndex].lit = true;
+    if (target && !target.lit && awarded > 0) {
+      game.stars[target.index].lit = true;
       game.points += awarded;
-      game.lastResult = { points: awarded, message: `Treffer! +${awarded} Punkte` };
-      const star = document.querySelector(`[data-star-index="${targetIndex}"]`);
+      const star = document.querySelector(`[data-star-index="${target.index}"]`);
       if (star) {
         star.classList.remove('dark');
         star.classList.add('lit', 'pulse');
-        setTimeout(() => star.classList.remove('pulse'), 500);
       }
       const burst = document.createElement('div');
       burst.className = 'score-burst';
       burst.textContent = `+${awarded}`;
-      burst.style.left = `${game.stars[targetIndex].x}%`;
-      burst.style.top = `${game.stars[targetIndex].y}%`;
+      burst.style.left = `${target.x}%`;
+      burst.style.top = `${target.y}%`;
       stage.appendChild(burst);
-      setTimeout(() => burst.remove(), 900);
-    } else {
-      game.lastResult = { points: 0, message: 'Knapp daneben – 0 Punkte' };
     }
-    pips.style.bottom = '24px';
-  }, 300);
+    game.lastResult = { points: awarded, message };
+  }, 410);
 
-  setTimeout(() => {
+  animation.finished.catch(() => {}).then(() => {
     game.index++;
-    pips.classList.remove('flying');
     if (game.index >= game.rounds.length) {
       game.finished = true;
     } else {
@@ -636,10 +673,17 @@ function triggerPipsFlight() {
       game.solvingErrors = 0;
     }
     renderGame();
-  }, 950);
+  });
 }
 
 backButton.addEventListener('click', () => {
+  if (view.screen === 'topic' && view.tab === 'game') {
+    cleanupGameInput();
+    game = null;
+    view.tab = 'learn';
+    renderTopic();
+    return;
+  }
   if (view.screen === 'topic') { view.screen='subject'; view.topicId=null; }
   else if (view.screen === 'subject') { view={screen:'home',subjectId:null,topicId:null,tab:'learn'}; }
   render();
