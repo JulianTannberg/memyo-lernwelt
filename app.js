@@ -2,19 +2,7 @@ const SUBJECTS = [
   {
     id: 'mathe', name: 'Mathe', icon: '∑', color: '#94bbd9', description: 'Rechnen, Geometrie, Daten und Größen',
     topics: [
-      timesTableTopic(1, '1er-Reihe', 1),
-      timesTableTopic(2, '2er-Reihe', 1),
-      timesTableTopic(5, '5er-Reihe', 1),
-      timesTableTopic(10, '10er-Reihe', 1),
-      timesTableTopic(3, '3er-Reihe', 2),
-      timesTableTopic(4, '4er-Reihe', 2),
-      timesTableTopic(6, '6er-Reihe', 2),
-      timesTableTopic(9, '9er-Reihe', 2),
-      timesTableTopic(8, '8er-Reihe', 3),
-      timesTableTopic(7, '7er-Reihe', 3),
-      mixedTimesTopic('mal-gemischt-leicht', 'Gemischt · leichte Reihen', [1, 2, 5, 10], 1, 20),
-      mixedTimesTopic('mal-gemischt-mittel', 'Gemischt · mittlere Reihen', [3, 4, 6, 9], 2, 20),
-      mixedTimesTopic('mal-gemischt-alle', 'Gemischt · alle Reihen', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 3, 30),
+      allTimesTableTopic(),
       topic('ganze-zahlen', 'Ganze Zahlen', ['Positive und negative Zahlen einordnen.', 'Mit Vorzeichen rechnen.', 'Ergebnisse überschlagen und prüfen.'], [
         choice('m-gz-1', '−7 + 12 = ?', ['−19', '−5', '5', '19'], '5', 'Von −7 gehst du 12 Schritte nach rechts.'),
         choice('m-gz-2', '15 − 22 = ?', ['7', '−7', '−37', '37'], '−7', '22 ist um 7 größer als 15.'),
@@ -164,6 +152,35 @@ function makeTimesQuestion(prefix, row, factor, number) {
   );
 }
 
+function allTimesTableTopic() {
+  const rowSequence = [1, 2, 5, 10, 3, 4, 6, 9, 8, 7];
+  const questions = [];
+  for (const row of rowSequence) {
+    for (let factor = 1; factor <= 10; factor++) {
+      const q = makeTimesQuestion(`m-mal-${row}`, row, factor, factor);
+      q.row = row;
+      q.factor = factor;
+      q.levelIndex = rowSequence.indexOf(row);
+      questions.push(q);
+    }
+  }
+  const item = topic(
+    'mal-komplett',
+    'Kleines 1×1 · Lernpfad',
+    [
+      'Alle 1×1-Aufgaben sind in einem gemeinsamen Lernpfad gesammelt.',
+      'Die Reihen werden nach und nach freigeschaltet: zuerst leicht, dann schwerer.',
+      'Aufgaben, die oft falsch waren, tauchen im Spiel häufiger wieder auf.'
+    ],
+    questions
+  );
+  item.timesTable = true;
+  item.adaptiveTimesTable = true;
+  item.rowSequence = rowSequence;
+  item.practiceLabel = 'Automatisch nach Lernstand';
+  return item;
+}
+
 function timesTableTopic(row, label, gameTier) {
   const questions = Array.from({ length: 10 }, (_, index) =>
     makeTimesQuestion(`m-mal-${row}`, row, index + 1, index + 1)
@@ -215,8 +232,8 @@ function mixedTimesTopic(id, name, rows, gameTier, count) {
   return item;
 }
 
-const STORAGE_KEY = 'memyo-lernwelt-progress-v10';
-const SETTINGS_KEY = 'memyo-lernwelt-settings-v10';
+const STORAGE_KEY = 'memyo-lernwelt-progress-v11';
+const SETTINGS_KEY = 'memyo-lernwelt-settings-v11';
 const AVATARS = [
   { id: 'pips', name: 'Pips' },
   { id: 'hare', name: 'Hase' },
@@ -291,9 +308,50 @@ function currentProgressBucket() {
   return progress.personal;
 }
 
-function topicProgress(topic) {
+function ensureTopicEntry(topic) {
   const bucket = currentProgressBucket();
-  const solved = new Set(bucket[topic.id]?.solved || []);
+  bucket[topic.id] = bucket[topic.id] || { solved: [], stats: {} };
+  bucket[topic.id].solved = bucket[topic.id].solved || [];
+  bucket[topic.id].stats = bucket[topic.id].stats || {};
+  return bucket[topic.id];
+}
+function getQuestionStats(topic, questionId) {
+  const entry = ensureTopicEntry(topic);
+  return entry.stats[questionId] || { correct: 0, wrong: 0 };
+}
+function recordQuestionResult(topic, questionId, isCorrect) {
+  const entry = ensureTopicEntry(topic);
+  entry.stats[questionId] = entry.stats[questionId] || { correct: 0, wrong: 0 };
+  if (isCorrect) entry.stats[questionId].correct += 1;
+  else entry.stats[questionId].wrong += 1;
+  saveProgress();
+}
+function getAdaptiveRowState(topic) {
+  const entry = ensureTopicEntry(topic);
+  const rowSequence = topic.rowSequence || [1,2,5,10,3,4,6,9,8,7];
+  let currentIndex = rowSequence.length - 1;
+  for (let i = 0; i < rowSequence.length; i++) {
+    const row = rowSequence[i];
+    const solvedInRow = topic.questions.filter(q => q.row === row && entry.solved.includes(q.id)).length;
+    if (solvedInRow < 8) {
+      currentIndex = i;
+      break;
+    }
+  }
+  const allMastered = rowSequence.every(row => topic.questions.filter(q => q.row === row && entry.solved.includes(q.id)).length >= 8);
+  if (allMastered) currentIndex = rowSequence.length - 1;
+  return {
+    rowSequence,
+    currentIndex,
+    currentRow: rowSequence[currentIndex],
+    unlockedRows: rowSequence.slice(0, currentIndex + 1),
+    allMastered
+  };
+}
+
+function topicProgress(topic) {
+  const entry = ensureTopicEntry(topic);
+  const solved = new Set(entry.solved || []);
   return Math.round((solved.size / topic.questions.length) * 100);
 }
 function subjectProgress(subject) {
@@ -663,10 +721,8 @@ function checkPracticeAnswer(button, q) {
   }
 }
 function markSolved(topic,id) {
-  const bucket = currentProgressBucket();
-  const entry = bucket[topic.id] || { solved: [] };
+  const entry = ensureTopicEntry(topic);
   if (!entry.solved.includes(id)) entry.solved.push(id);
-  bucket[topic.id]=entry;
   saveProgress();
 }
 function renderPracticeSummary() {
@@ -686,7 +742,15 @@ function showBowling(done) {
 
 
 function gameDifficulty(index) {
-  const tier = currentTopic()?.gameTier;
+  const topic = currentTopic();
+  if (topic?.adaptiveTimesTable) {
+    const state = getAdaptiveRowState(topic);
+    const row = state.currentRow;
+    if ([1, 2, 5, 10].includes(row)) return { label: 'leicht', max: 5 };
+    if ([3, 4, 6, 9].includes(row)) return { label: 'mittel', max: 10 };
+    return { label: 'schwer', max: 15 };
+  }
+  const tier = topic?.gameTier;
   if (tier === 1) return { label: 'leicht', max: 5 };
   if (tier === 2) return { label: 'mittel', max: 10 };
   if (tier === 3) return { label: 'schwer', max: 15 };
@@ -755,6 +819,44 @@ function buildGameRounds(topic, count = 10) {
         correct: String(correct),
         hint: isAddition ? 'Gehe auf dem Zahlenstrahl nach rechts.' : 'Ziehe die zweite Zahl ab.'
       });
+    }
+    return rounds;
+  }
+
+  if (topic.adaptiveTimesTable) {
+    const entry = ensureTopicEntry(topic);
+    const state = getAdaptiveRowState(topic);
+    const candidatePool = topic.questions.filter(q => state.unlockedRows.includes(q.row));
+    const rounds = [];
+    let lastId = '';
+
+    const weightedCandidates = () => {
+      const weighted = [];
+      for (const question of candidatePool) {
+        const stats = entry.stats[question.id] || { correct: 0, wrong: 0 };
+        const solved = entry.solved.includes(question.id);
+        let weight = 1;
+        if (question.row === state.currentRow) weight += state.allMastered ? 0 : 6;
+        else weight += 1;
+        if (!solved) weight += 3;
+        if (stats.wrong > 0) weight += Math.min(8, stats.wrong * 2);
+        if (stats.wrong > stats.correct) weight += 2;
+        if (state.allMastered && stats.wrong > 0) weight += 2;
+        for (let i = 0; i < weight; i++) weighted.push(question);
+      }
+      return weighted;
+    };
+
+    while (rounds.length < count) {
+      const weighted = weightedCandidates();
+      let pick = weighted[Math.floor(Math.random() * weighted.length)];
+      if (!pick) pick = candidatePool[Math.floor(Math.random() * candidatePool.length)];
+      if (pick && pick.id === lastId && candidatePool.length > 1) {
+        const alternatives = weighted.filter(q => q.id !== lastId);
+        if (alternatives.length) pick = alternatives[Math.floor(Math.random() * alternatives.length)];
+      }
+      rounds.push(pick);
+      lastId = pick.id;
     }
     return rounds;
   }
@@ -865,6 +967,7 @@ function renderGame() {
               <span class="difficulty-pill">${difficulty.label}</span>
               <span>max. ${difficulty.max} Punkte</span>
             </div>
+            ${currentTopic()?.adaptiveTimesTable ? `<div class="adaptive-note">Aktuell im Lernpfad: ${getAdaptiveRowState(currentTopic()).allMastered ? 'gemischt aus allen Reihen' : getAdaptiveRowState(currentTopic()).currentRow + 'er-Reihe'} · Fehleraufgaben kommen häufiger wieder.</div>` : ''}
             ${game.lastResult ? `<div class="result-line ${game.lastResult.points > 0 ? 'good' : 'miss'}">${escapeHtml(game.lastResult.message)}</div>` : ''}
             <div class="game-question">${escapeHtml(q.q)}</div>
             <div class="game-answers">
@@ -922,7 +1025,7 @@ function startPipsRun() {
   let last = null;
   const minX = 9;
   const maxX = 91;
-  const speed = 0.062 + Math.min(game.index, 11) * 0.0025;
+  const speed = 0.056 + Math.min(game.index, 11) * 0.0019;
 
   const frame = (ts) => {
     if (!game || game.phase !== 'run') return;
@@ -945,10 +1048,14 @@ function checkGameAnswer(button, q) {
     game.summary.correctAnswers++;
     game.solvingErrors = 0;
     game.phase = 'run';
-    if (currentTopic().questions.some(item => item.id === q.id)) markSolved(currentTopic(), q.id);
+    if (currentTopic().questions.some(item => item.id === q.id)) {
+      markSolved(currentTopic(), q.id);
+      recordQuestionResult(currentTopic(), q.id, true);
+    }
     button.classList.add('correct');
     setTimeout(() => renderGame(), 180);
   } else {
+    if (currentTopic().questions.some(item => item.id === q.id)) recordQuestionResult(currentTopic(), q.id, false);
     game.solvingErrors++;
     game.summary.totalErrors++;
     button.classList.add('wrong');
@@ -1004,7 +1111,7 @@ function triggerPipsFlight() {
     { transform: pips.classList.contains('facing-left') ? `scaleX(-1) translateY(-${flightDistance}px)` : `translateY(-${flightDistance}px)`, offset: .5 },
     { transform: pips.classList.contains('facing-left') ? 'scaleX(-1) translateY(0)' : 'translateY(0)' }
   ], {
-    duration: 1950,
+    duration: 2350,
     easing: 'cubic-bezier(.32,.72,.28,1)'
   });
 

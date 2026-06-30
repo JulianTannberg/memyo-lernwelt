@@ -1125,3 +1125,6 @@ body {
 @media (max-width: 620px) {
   .accessory-picker { grid-template-columns: 1fr; }
 }
+
+
+.adaptive-note{margin:10px 0 0;color:#6b7785;font-size:.92rem;line-height:1.35;}

@@ -1,13 +1,14 @@
-MEMYO LERNWELT – TESTVERSION 10
+MEMYO LERNWELT – TESTVERSION 11
 
-NEU IN VERSION 10:
-- schönere Spielfiguren aus der neuen Tierreihe
-- Pips mit geknicktem Ohr
-- Figurenwahl: Pips, Hase, Fuchs und Reh
-- Pips-Flug und Sprung deutlich langsamer und realistischer
-- gleiche langsamere Aufwärtsbewegung auch für die anderen Figuren
-- weiterhin Schulmodus ohne Anmeldung, mit Namenswahl und lokalem Highscore
+NEU IN VERSION 11:
+- Pips im neuen Sticker-Stil eingebaut
+- Sprung / Hochflug deutlich langsamer
+- Rennen minimal langsamer
+- das kleine 1x1 ist jetzt in EINEM gemeinsamen Lernpfad
+- die Reihen werden automatisch von leicht nach schwer freigeschaltet
+- häufig falsch gelöste Aufgaben tauchen öfter wieder auf
+- lokal gespeicherter Lernstand entscheidet über den Schwierigkeitsgrad
 
 HINWEIS:
-- Bitte den gesamten Ordnerinhalt inklusive assets hochladen und vorhandene Dateien ersetzen.
-- Danach die Seite mit ?v=10 öffnen.
+- den kompletten Ordnerinhalt hochladen und alles ersetzen
+- danach die Seite mit ?v=11 öffnen
