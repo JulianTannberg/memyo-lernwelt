@@ -1,12 +1,16 @@
-const CACHE = 'memyo-lernwelt-v4';
+const CACHE = 'memyo-lernwelt-v5';
 const ASSETS = [
   './',
   './index.html',
-  './styles.css?v=4',
-  './app.js?v=4',
+  './styles.css?v=5',
+  './app.js?v=5',
   './manifest.webmanifest',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './assets/pips-wait.png',
+  './assets/pips-run-a.png',
+  './assets/pips-run-b.png',
+  './assets/pips-fly.png'
 ];
 
 self.addEventListener('install', event => {

@@ -30,3 +30,6 @@ WICHTIG:
 
 GITHUB:
 Den Inhalt dieses Ordners in das bestehende Repository hochladen und gleichnamige Dateien ersetzen. Danach GitHub Pages kurz neu veröffentlichen lassen. Die Versionsnummern in index.html und service-worker.js wurden auf v4 erhöht, damit der alte App-Cache ersetzt wird.
+
+
+Version 5: Pips als Chibi-Sprite eingebaut. Laufgeschwindigkeit leicht erhöht; gerader Flug deutlich verlangsamt.

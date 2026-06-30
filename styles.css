@@ -647,3 +647,48 @@ body.game-mode .game-panel { margin-bottom: 0; }
     max-height: 720px;
   }
 }
+
+/* v5: echte Pips-Sprites statt CSS-Grundformen */
+.pips-avatar {
+  width: 88px;
+  height: 94px;
+  margin-left: -44px;
+  bottom: 5px;
+}
+.pips-avatar .pips-sprite {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: none;
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(0 5px 5px rgba(31, 47, 58, .18));
+}
+.pips-avatar.waiting .pips-wait { display: block; }
+.pips-avatar.running .pips-run-a,
+.pips-avatar.running .pips-run-b { display: block; }
+.pips-avatar.running .pips-run-a { animation: pipsRunFrameA .32s linear infinite; }
+.pips-avatar.running .pips-run-b { animation: pipsRunFrameB .32s linear infinite; }
+.pips-avatar.flying .pips-fly { display: block; }
+.pips-avatar.flying .pips-wait,
+.pips-avatar.flying .pips-run-a,
+.pips-avatar.flying .pips-run-b { display: none; }
+@keyframes pipsRunFrameA {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+@keyframes pipsRunFrameB {
+  0%, 49% { opacity: 0; }
+  50%, 100% { opacity: 1; }
+}
+
+@media (max-width: 620px) {
+  .pips-avatar {
+    width: 80px;
+    height: 86px;
+    margin-left: -40px;
+    bottom: 4px;
+  }
+}

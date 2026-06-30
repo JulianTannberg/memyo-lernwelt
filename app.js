@@ -511,15 +511,10 @@ function renderGame() {
 
         <div class="stage-ground"></div>
         <div id="pips" class="pips-avatar ${runVisible ? 'running' : 'waiting'}" style="left:${game.pipsX}%" aria-label="Pips">
-          <span class="ear left"></span>
-          <span class="ear right"></span>
-          <span class="wing left"></span>
-          <span class="wing right"></span>
-          <span class="head"></span>
-          <span class="body"></span>
-          <span class="eye left"></span>
-          <span class="eye right"></span>
-          <span class="nose"></span>
+          <img class="pips-sprite pips-wait" src="assets/pips-wait.png" alt="">
+          <img class="pips-sprite pips-run-a" src="assets/pips-run-a.png" alt="">
+          <img class="pips-sprite pips-run-b" src="assets/pips-run-b.png" alt="">
+          <img class="pips-sprite pips-fly" src="assets/pips-fly.png" alt="">
         </div>
       </div>
     </div>`;
@@ -560,7 +555,7 @@ function startPipsRun() {
   let last = null;
   const minX = 9;
   const maxX = 91;
-  const speed = 0.046 + Math.min(game.index, 9) * 0.0015;
+  const speed = 0.052 + Math.min(game.index, 9) * 0.0016;
 
   const frame = (ts) => {
     if (!game || game.phase !== 'run') return;
@@ -635,13 +630,14 @@ function triggerPipsFlight() {
   }
 
   const flightDistance = Math.max(220, stageRect.height - 95);
+  pips.classList.remove('running', 'waiting');
   pips.classList.add('flying');
   const animation = pips.animate([
     { transform: pips.classList.contains('facing-left') ? 'scaleX(-1) translateY(0)' : 'translateY(0)' },
-    { transform: pips.classList.contains('facing-left') ? `scaleX(-1) translateY(-${flightDistance}px)` : `translateY(-${flightDistance}px)`, offset: .48 },
+    { transform: pips.classList.contains('facing-left') ? `scaleX(-1) translateY(-${flightDistance}px)` : `translateY(-${flightDistance}px)`, offset: .5 },
     { transform: pips.classList.contains('facing-left') ? 'scaleX(-1) translateY(0)' : 'translateY(0)' }
   ], {
-    duration: 920,
+    duration: 1550,
     easing: 'cubic-bezier(.32,.72,.28,1)'
   });
 
@@ -662,7 +658,7 @@ function triggerPipsFlight() {
       stage.appendChild(burst);
     }
     game.lastResult = { points: awarded, message };
-  }, 410);
+  }, 760);
 
   animation.finished.catch(() => {}).then(() => {
     game.index++;
