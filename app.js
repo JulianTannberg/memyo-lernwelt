@@ -215,13 +215,20 @@ function mixedTimesTopic(id, name, rows, gameTier, count) {
   return item;
 }
 
-const STORAGE_KEY = 'memyo-lernwelt-progress-v7';
-const SETTINGS_KEY = 'memyo-lernwelt-settings-v7';
+const STORAGE_KEY = 'memyo-lernwelt-progress-v9';
+const SETTINGS_KEY = 'memyo-lernwelt-settings-v9';
 const AVATARS = [
   { id: 'pips', name: 'Pips' },
   { id: 'luna', name: 'Luna' },
   { id: 'milo', name: 'Milo' },
   { id: 'nova', name: 'Nova' }
+];
+const ACCESSORIES = [
+  { id: 'none', name: 'Ohne Extra', icon: '·', unlock: 0, desc: 'pur' },
+  { id: 'starclip', name: 'Sternclip', icon: '⭐', unlock: 20, desc: 'für erste Treffer' },
+  { id: 'mooncape', name: 'Mondumhang', icon: '🌙', unlock: 45, desc: 'für starke Runden' },
+  { id: 'skate', name: 'Skateboard', icon: '🛹', unlock: 75, desc: 'für coole Profis' },
+  { id: 'crystal', name: 'Kristallfunke', icon: '💎', unlock: 105, desc: 'für Top-Highscores' }
 ];
 
 let progress = loadProgress();
@@ -246,7 +253,7 @@ function normalizeName(value) {
 }
 
 function defaultSettings() {
-  return { mode: 'school', playerName: '', avatar: 'pips', schoolProfiles: {} };
+  return { mode: 'school', playerName: '', avatar: 'pips', accessory: 'none', schoolProfiles: {} };
 }
 
 function loadSettings() {
@@ -255,7 +262,7 @@ function loadSettings() {
     return {
       ...defaultSettings(),
       ...data,
-      schoolProfiles: data.schoolProfiles || {}
+      schoolProfiles: Object.fromEntries(Object.entries(data.schoolProfiles || {}).map(([key, value]) => [key, { unlockedAccessories: ['none'], selectedAccessory: 'none', ...value }]))
     };
   } catch {
     return defaultSettings();
@@ -310,32 +317,80 @@ function avatarOptionCard(avatarId) {
   const avatar = AVATARS.find(item => item.id === avatarId) || AVATARS[0];
   return `<button class="avatar-option ${currentAvatarId() === avatar.id ? 'active' : ''}" data-avatar-choice="${avatar.id}" type="button"><img src="${avatarAsset(avatar.id,'wait')}" alt=""><span>${avatar.name}</span></button>`;
 }
+function currentProfileKey() {
+  return settings.playerName ? normalizeName(settings.playerName) : '';
+}
+function currentProfile() {
+  const key = currentProfileKey();
+  return key ? settings.schoolProfiles[key] || null : null;
+}
+function ensureAccessoryList(profile) {
+  const base = Array.isArray(profile?.unlockedAccessories) ? profile.unlockedAccessories : ['none'];
+  return base.includes('none') ? base : ['none', ...base];
+}
+function currentAccessoryId() {
+  const profile = currentProfile();
+  const saved = profile?.selectedAccessory || settings.accessory || 'none';
+  const unlocked = ensureAccessoryList(profile || {});
+  return unlocked.includes(saved) ? saved : 'none';
+}
+function currentAccessory() {
+  return ACCESSORIES.find(item => item.id === currentAccessoryId()) || ACCESSORIES[0];
+}
+function accessoryBadge(id = currentAccessoryId()) {
+  const item = ACCESSORIES.find(entry => entry.id === id) || ACCESSORIES[0];
+  return item.id === 'none' ? '' : `<span class="accessory-badge accessory-${item.id}" aria-hidden="true">${item.icon}</span>`;
+}
+function accessoryChoiceCard(id, active) {
+  const item = ACCESSORIES.find(entry => entry.id === id) || ACCESSORIES[0];
+  return `<button class="accessory-option ${active ? 'active' : ''}" data-accessory-choice="${item.id}" type="button"><span class="accessory-preview">${item.icon}</span><span><strong>${item.name}</strong><small>${item.desc}</small></span></button>`;
+}
+function maybeUnlockAccessories(profile, score) {
+  const unlocked = new Set(ensureAccessoryList(profile));
+  const newly = [];
+  for (const item of ACCESSORIES) {
+    if (score >= item.unlock && !unlocked.has(item.id)) {
+      unlocked.add(item.id);
+      newly.push(item);
+    }
+  }
+  profile.unlockedAccessories = [...unlocked];
+  if (!profile.selectedAccessory || !profile.unlockedAccessories.includes(profile.selectedAccessory)) {
+    profile.selectedAccessory = 'none';
+  }
+  return newly;
+}
 function getSortedSchoolProfiles() {
   return Object.values(settings.schoolProfiles || {}).sort((a, b) => (b.bestScore || 0) - (a.bestScore || 0) || a.name.localeCompare(b.name));
 }
-function saveCurrentProfile(name, avatarId) {
+function saveCurrentProfile(name, avatarId, accessoryId = null) {
   const trimmed = String(name || '').trim();
   if (!trimmed) return { ok: false, message: 'Bitte einen Namen eingeben.' };
   const key = normalizeName(trimmed);
   const existing = settings.schoolProfiles[key] || {};
+  const unlockedAccessories = ensureAccessoryList(existing);
   settings.playerName = trimmed;
   settings.avatar = avatarId || existing.avatar || 'pips';
+  settings.accessory = accessoryId || existing.selectedAccessory || 'none';
+  if (!unlockedAccessories.includes(settings.accessory)) settings.accessory = 'none';
   settings.schoolProfiles[key] = {
     name: trimmed,
     avatar: settings.avatar,
     bestScore: existing.bestScore || 0,
     plays: existing.plays || 0,
     lastScore: existing.lastScore || 0,
-    bestTopic: existing.bestTopic || ''
+    bestTopic: existing.bestTopic || '',
+    unlockedAccessories,
+    selectedAccessory: settings.accessory
   };
   saveSettings();
   renderProfileButton();
   return { ok: true };
 }
 function rememberSchoolScore(score, topicName) {
-  if (settings.mode !== 'school' || !settings.playerName) return;
+  if (settings.mode !== 'school' || !settings.playerName) return [];
   const key = normalizeName(settings.playerName);
-  const existing = settings.schoolProfiles[key] || { name: settings.playerName, avatar: currentAvatarId(), bestScore: 0, plays: 0, lastScore: 0, bestTopic: '' };
+  const existing = settings.schoolProfiles[key] || { name: settings.playerName, avatar: currentAvatarId(), bestScore: 0, plays: 0, lastScore: 0, bestTopic: '', unlockedAccessories: ['none'], selectedAccessory: settings.accessory || 'none' };
   existing.name = settings.playerName;
   existing.avatar = currentAvatarId();
   existing.lastScore = score;
@@ -344,16 +399,21 @@ function rememberSchoolScore(score, topicName) {
     existing.bestScore = score || 0;
     existing.bestTopic = topicName || existing.bestTopic || '';
   }
+  const newlyUnlocked = maybeUnlockAccessories(existing, existing.bestScore || 0);
+  settings.accessory = existing.selectedAccessory || 'none';
   settings.schoolProfiles[key] = existing;
   saveSettings();
+  return newlyUnlocked;
 }
 function renderProfileButton() {
   const avatarId = currentAvatarId();
   const label = settings.playerName || 'Schulprofil';
-  profileButton.innerHTML = `<img src="${avatarAsset(avatarId,'wait')}" alt=""><span><strong>${escapeHtml(label)}</strong><small>${settings.mode === 'school' ? 'Schulmodus' : 'Zuhause'}</small></span>`;
+  profileButton.innerHTML = `<span class="profile-avatar-wrap"><img src="${avatarAsset(avatarId,'wait')}" alt="">${accessoryBadge()}</span><span><strong>${escapeHtml(label)}</strong><small>${settings.mode === 'school' ? 'Schulmodus' : 'Zuhause'}</small></span>`;
 }
 function openProfileOverlay() {
   const profiles = getSortedSchoolProfiles();
+  const activeProfile = currentProfile() || {};
+  const activeUnlocked = ensureAccessoryList(activeProfile);
   profileOverlay.classList.remove('hidden');
   profileOverlay.setAttribute('aria-hidden', 'false');
   profileOverlay.innerHTML = `
@@ -372,20 +432,41 @@ function openProfileOverlay() {
       <div class="avatar-picker">
         ${AVATARS.map(avatar => `<button class="avatar-option ${currentAvatarId() === avatar.id ? 'active' : ''}" data-avatar-choice="${avatar.id}" type="button"><img src="${avatarAsset(avatar.id,'wait')}" alt=""><span><strong>${avatar.name}</strong><small>${avatar.id === 'pips' ? 'klassisch' : avatar.id === 'luna' ? 'sanft' : avatar.id === 'milo' ? 'frech' : 'mutig'}</small></span></button>`).join('')}
       </div>
-      ${profiles.length ? `<div class="saved-profiles"><h3>Gespeicherte Namen</h3><div class="saved-profile-list">${profiles.slice(0,8).map(item => `<button class="saved-profile-chip" data-profile-name="${escapeHtml(item.name)}" data-profile-avatar="${item.avatar || 'pips'}" type="button"><img src="${avatarAsset(item.avatar || 'pips','wait')}" alt=""><span>${escapeHtml(item.name)}</span><small>${item.bestScore || 0} Punkte</small></button>`).join('')}</div></div>` : ''}
+      <div class="accessory-section">
+        <div class="section-head"><h3>Freigeschaltete Extras</h3><small>durch Highscores</small></div>
+        <div class="accessory-picker">
+          ${activeUnlocked.map(id => accessoryChoiceCard(id, currentAccessoryId() === id)).join('')}
+        </div>
+      </div>
+      ${profiles.length ? `<div class="saved-profiles"><h3>Gespeicherte Namen</h3><div class="saved-profile-list">${profiles.slice(0,8).map(item => `<button class="saved-profile-chip" data-profile-name="${escapeHtml(item.name)}" data-profile-avatar="${item.avatar || 'pips'}" data-profile-accessory="${item.selectedAccessory || 'none'}" type="button"><span class="saved-avatar-wrap"><span class="saved-avatar-wrap"><img src="${avatarAsset(item.avatar || 'pips','wait')}" alt="">${accessoryBadge(item.selectedAccessory || 'none')}</span>${accessoryBadge(item.selectedAccessory || 'none')}</span><span>${escapeHtml(item.name)}</span><small>${item.bestScore || 0} Punkte</small></button>`).join('')}</div></div>` : ''}
       <div class="button-row"><button class="primary-button" id="saveProfileButton" type="button">Speichern</button><button class="secondary-button" id="closeProfileButton" type="button">Schließen</button></div>
-      <p class="overlay-note" id="profileOverlayNote"></p>
+      <p class="overlay-note" id="profileOverlayNote">Ab 20 Punkten werden erste Extras freigeschaltet.</p>
     </div>`;
 
   let draftAvatar = currentAvatarId();
+  let draftAccessory = currentAccessoryId();
+
+  function refreshAccessoryChoices(unlocked) {
+    const picker = profileOverlay.querySelector('.accessory-picker');
+    picker.innerHTML = unlocked.map(id => accessoryChoiceCard(id, draftAccessory === id)).join('');
+    picker.querySelectorAll('[data-accessory-choice]').forEach(btn => btn.addEventListener('click', () => {
+      draftAccessory = btn.dataset.accessoryChoice;
+      picker.querySelectorAll('[data-accessory-choice]').forEach(item => item.classList.toggle('active', item.dataset.accessoryChoice === draftAccessory));
+    }));
+  }
+
   profileOverlay.querySelectorAll('[data-avatar-choice]').forEach(btn => btn.addEventListener('click', () => {
     draftAvatar = btn.dataset.avatarChoice;
     profileOverlay.querySelectorAll('[data-avatar-choice]').forEach(item => item.classList.toggle('active', item.dataset.avatarChoice === draftAvatar));
   }));
   profileOverlay.querySelectorAll('[data-profile-name]').forEach(btn => btn.addEventListener('click', () => {
+    const key = normalizeName(btn.dataset.profileName);
+    const profile = settings.schoolProfiles[key] || { unlockedAccessories: ['none'] };
     profileOverlay.querySelector('#playerNameInput').value = btn.dataset.profileName;
     draftAvatar = btn.dataset.profileAvatar || 'pips';
+    draftAccessory = profile.selectedAccessory || 'none';
     profileOverlay.querySelectorAll('[data-avatar-choice]').forEach(item => item.classList.toggle('active', item.dataset.avatarChoice === draftAvatar));
+    refreshAccessoryChoices(ensureAccessoryList(profile));
   }));
   profileOverlay.querySelectorAll('[data-mode-choice]').forEach(btn => btn.addEventListener('click', () => {
     settings.mode = btn.dataset.modeChoice;
@@ -396,8 +477,9 @@ function openProfileOverlay() {
   profileOverlay.querySelector('#closeProfileOverlay').addEventListener('click', close);
   profileOverlay.querySelector('#closeProfileButton').addEventListener('click', close);
   profileOverlay.onclick = event => { if (event.target === profileOverlay) close(); };
+  refreshAccessoryChoices(activeUnlocked);
   profileOverlay.querySelector('#saveProfileButton').addEventListener('click', () => {
-    const result = saveCurrentProfile(profileOverlay.querySelector('#playerNameInput').value, draftAvatar);
+    const result = saveCurrentProfile(profileOverlay.querySelector('#playerNameInput').value, draftAvatar, draftAccessory);
     const note = profileOverlay.querySelector('#profileOverlayNote');
     if (!result.ok) {
       note.textContent = result.message;
@@ -443,21 +525,21 @@ function renderHome() {
     <section class="school-board">
       <div class="school-card player-card">
         <div class="player-card-head">
-          <img src="${avatarAsset(currentAvatarId(),'wait')}" alt="">
+          <span class="player-avatar-wrap"><img src="${avatarAsset(currentAvatarId(),'wait')}" alt="">${accessoryBadge()}</span>
           <div>
             <h3>${settings.playerName ? escapeHtml(settings.playerName) : 'Noch kein Profil gewählt'}</h3>
             <p>${settings.mode === 'school' ? 'Einfach Name eingeben, Figur aussuchen und losspielen.' : 'Zuhause-Modus mit gespeichertem Fortschritt.'}</p>
           </div>
         </div>
         <div class="player-card-meta">
-          <div><span>Aktive Figur</span><strong>${escapeHtml(currentAvatar().name)}</strong></div>
+          <div><span>Aktive Figur</span><strong>${escapeHtml(currentAvatar().name)}</strong></div><div><span>Extra</span><strong>${escapeHtml(currentAccessory().name)}</strong></div>
           <div><span>Persönlicher Highscore</span><strong>${activeProfile?.bestScore || 0}</strong></div>
-          <div><span>Gespielte Runden</span><strong>${activeProfile?.plays || 0}</strong></div>
+          <div><span>Gespielte Runden</span><strong>${activeProfile?.plays || 0}</strong></div><div><span>Freigeschaltet</span><strong>${ensureAccessoryList(activeProfile || {}).length - 1}</strong></div>
         </div>
       </div>
       <div class="school-card score-card">
         <div class="score-card-head"><h3>Highscores im Browser</h3><p>Die Liste bleibt lokal auf diesem Gerät gespeichert.</p></div>
-        ${profiles.length ? `<ol class="score-list">${profiles.slice(0,6).map(item => `<li><img src="${avatarAsset(item.avatar || 'pips','wait')}" alt=""><strong>${escapeHtml(item.name)}</strong><span>${item.bestScore || 0} Punkte</span></li>`).join('')}</ol>` : '<p class="notice">Noch keine Highscores vorhanden.</p>'}
+        ${profiles.length ? `<ol class="score-list">${profiles.slice(0,6).map(item => `<li><span class="saved-avatar-wrap"><img src="${avatarAsset(item.avatar || 'pips','wait')}" alt="">${accessoryBadge(item.selectedAccessory || 'none')}</span><strong>${escapeHtml(item.name)}</strong><span>${item.bestScore || 0} Punkte</span></li>`).join('')}</ol>` : '<p class="notice">Noch keine Highscores vorhanden.</p>'}
       </div>
     </section>
     <section aria-labelledby="subjectsTitle">
@@ -711,7 +793,8 @@ function startGame() {
     solvingErrors: 0,
     lastResult: null,
     summary: { correctAnswers: 0, totalErrors: 0 },
-    scoreSaved: false
+    scoreSaved: false,
+    newUnlocks: []
   };
   renderGame();
 }
@@ -724,7 +807,7 @@ function renderGame() {
     const lit = game.stars.filter(star => star.lit).length;
     const maxPoints = game.rounds.reduce((sum, _, i) => sum + gameDifficulty(i).max, 0);
     if (!game.scoreSaved) {
-      rememberSchoolScore(game.points, currentTopic()?.name || '');
+      game.newUnlocks = rememberSchoolScore(game.points, currentTopic()?.name || '');
       game.scoreSaved = true;
     }
     const activeProfile = settings.playerName ? settings.schoolProfiles[normalizeName(settings.playerName)] : null;
@@ -735,6 +818,7 @@ function renderGame() {
         <h2>${game.points} Punkte</h2>
         <p class="lead">${settings.playerName ? `${escapeHtml(settings.playerName)}, ` : ''}${lit} von ${game.stars.length} Sternen leuchten.</p>
         ${activeProfile ? `<p class="summary-highscore">Bester Stand von ${escapeHtml(activeProfile.name)}: <strong>${activeProfile.bestScore || 0} Punkte</strong></p>` : ''}
+        ${game.newUnlocks?.length ? `<div class="unlock-box"><strong>Neu freigeschaltet:</strong> ${game.newUnlocks.map(item => `${item.icon} ${escapeHtml(item.name)}`).join(' · ')}</div>` : ''}
         <div class="game-summary-grid">
           <div class="summary-box"><span>Aufgaben</span><strong>${game.summary.correctAnswers}/${game.rounds.length}</strong></div>
           <div class="summary-box"><span>Sterne</span><strong>${lit}/${game.stars.length}</strong></div>
@@ -797,6 +881,7 @@ function renderGame() {
           <img class="pips-sprite pips-run-a" src="${avatarAsset(currentAvatarId(),'run-a')}" alt="">
           <img class="pips-sprite pips-run-b" src="${avatarAsset(currentAvatarId(),'run-b')}" alt="">
           <img class="pips-sprite pips-fly" src="${avatarAsset(currentAvatarId(),'fly')}" alt="">
+          ${accessoryBadge()}
         </div>
       </div>
     </div>`;
@@ -837,7 +922,7 @@ function startPipsRun() {
   let last = null;
   const minX = 9;
   const maxX = 91;
-  const speed = 0.052 + Math.min(game.index, 9) * 0.0016;
+  const speed = 0.062 + Math.min(game.index, 11) * 0.0025;
 
   const frame = (ts) => {
     if (!game || game.phase !== 'run') return;
@@ -886,7 +971,7 @@ function triggerPipsFlight() {
   const difficulty = gameDifficulty(game.index);
   const stageRect = stage.getBoundingClientRect();
   const pipsCenterX = (game.pipsX / 100) * stageRect.width;
-  const hitRange = Math.max(20, Math.min(27, stageRect.width * 0.035));
+  const hitRange = Math.max(12, Math.min(20, stageRect.width * 0.026));
 
   const candidates = game.stars
     .map((star, index) => ({
@@ -895,17 +980,17 @@ function triggerPipsFlight() {
       dx: Math.abs((star.x / 100) * stageRect.width - pipsCenterX)
     }))
     .filter(star => star.dx <= hitRange)
-    .sort((a, b) => b.y - a.y);
+    .sort((a, b) => a.dx - b.dx || b.y - a.y);
 
   const target = candidates[0] || null;
   let awarded = 0;
-  let message = 'Knapp daneben – 0 Punkte';
+  let message = 'Knapp daneben – dieses Mal 0 Punkte';
 
   if (target) {
     if (target.lit) {
-      message = 'Dieser Stern leuchtet schon – 0 Punkte';
+      message = 'Dieser Stern leuchtet schon – versuch den nächsten!';
     } else {
-      const rawPoints = target.dx <= 6 ? 15 : target.dx <= 14 ? 10 : 5;
+      const rawPoints = target.dx <= 3.5 ? 15 : target.dx <= 7.5 ? 10 : 5;
       awarded = Math.min(rawPoints, difficulty.max);
       message = `Treffer! +${awarded} Punkte`;
     }
@@ -919,7 +1004,7 @@ function triggerPipsFlight() {
     { transform: pips.classList.contains('facing-left') ? `scaleX(-1) translateY(-${flightDistance}px)` : `translateY(-${flightDistance}px)`, offset: .5 },
     { transform: pips.classList.contains('facing-left') ? 'scaleX(-1) translateY(0)' : 'translateY(0)' }
   ], {
-    duration: 1550,
+    duration: 1480,
     easing: 'cubic-bezier(.32,.72,.28,1)'
   });
 
