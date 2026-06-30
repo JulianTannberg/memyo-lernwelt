@@ -2,6 +2,19 @@ const SUBJECTS = [
   {
     id: 'mathe', name: 'Mathe', icon: '∑', color: '#94bbd9', description: 'Rechnen, Geometrie, Daten und Größen',
     topics: [
+      timesTableTopic(1, '1er-Reihe', 1),
+      timesTableTopic(2, '2er-Reihe', 1),
+      timesTableTopic(5, '5er-Reihe', 1),
+      timesTableTopic(10, '10er-Reihe', 1),
+      timesTableTopic(3, '3er-Reihe', 2),
+      timesTableTopic(4, '4er-Reihe', 2),
+      timesTableTopic(6, '6er-Reihe', 2),
+      timesTableTopic(9, '9er-Reihe', 2),
+      timesTableTopic(8, '8er-Reihe', 3),
+      timesTableTopic(7, '7er-Reihe', 3),
+      mixedTimesTopic('mal-gemischt-leicht', 'Gemischt · leichte Reihen', [1, 2, 5, 10], 1, 20),
+      mixedTimesTopic('mal-gemischt-mittel', 'Gemischt · mittlere Reihen', [3, 4, 6, 9], 2, 20),
+      mixedTimesTopic('mal-gemischt-alle', 'Gemischt · alle Reihen', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 3, 30),
       topic('ganze-zahlen', 'Ganze Zahlen', ['Positive und negative Zahlen einordnen.', 'Mit Vorzeichen rechnen.', 'Ergebnisse überschlagen und prüfen.'], [
         choice('m-gz-1', '−7 + 12 = ?', ['−19', '−5', '5', '19'], '5', 'Von −7 gehst du 12 Schritte nach rechts.'),
         choice('m-gz-2', '15 − 22 = ?', ['7', '−7', '−37', '37'], '−7', '22 ist um 7 größer als 15.'),
@@ -130,9 +143,91 @@ function posterTopic(id, name, learn) {
 }
 function choice(id, q, options, correct, hint) { return { id, q, options, correct, hint }; }
 
-const STORAGE_KEY = 'memyo-lernwelt-progress-v1';
+function makeTimesQuestion(prefix, row, factor, number) {
+  const correct = row * factor;
+  const candidates = [
+    row * Math.max(1, factor - 1),
+    row * (factor + 1),
+    (row + 1) * factor,
+    Math.max(0, correct - row),
+    correct + row,
+    Math.max(0, correct - 1),
+    correct + 1,
+    correct + 10
+  ];
+  return choice(
+    `${prefix}-${number}`,
+    `${row} · ${factor} = ?`,
+    uniqueOptions(correct, candidates),
+    String(correct),
+    `Zähle ${factor}-mal in ${row}er-Schritten.`
+  );
+}
+
+function timesTableTopic(row, label, gameTier) {
+  const questions = Array.from({ length: 10 }, (_, index) =>
+    makeTimesQuestion(`m-mal-${row}`, row, index + 1, index + 1)
+  );
+  const item = topic(
+    `mal-${row}`,
+    `Kleines 1×1 · ${label}`,
+    [
+      `Übe die ${label} von 1 bis 10.`,
+      'Sprich die Aufgaben und Ergebnisse möglichst laut mit.',
+      'Im Übungsbereich kommt die Reihe zunächst der Reihe nach; im Spiel wird sie gemischt.'
+    ],
+    questions
+  );
+  item.gameTier = gameTier;
+  item.timesTable = true;
+  item.practiceLabel = `${label} der Reihe nach`;
+  return item;
+}
+
+function mixedTimesTopic(id, name, rows, gameTier, count) {
+  const pairs = [];
+  for (const row of rows) {
+    for (let factor = 1; factor <= 10; factor++) pairs.push({ row, factor });
+  }
+  pairs.sort((a, b) => {
+    const scoreA = (a.factor * 37 + a.row * 19 + a.factor * a.row * 3) % 101;
+    const scoreB = (b.factor * 37 + b.row * 19 + b.factor * b.row * 3) % 101;
+    return scoreA - scoreB || a.row - b.row || a.factor - b.factor;
+  });
+  const selected = pairs.slice(0, Math.min(count, pairs.length));
+  const questions = selected.map((pair, index) =>
+    makeTimesQuestion(`m-${id}`, pair.row, pair.factor, index + 1)
+  );
+  const item = topic(
+    id,
+    `Kleines 1×1 · ${name}`,
+    [
+      `Rechne Aufgaben aus den Reihen ${rows.join(', ')} durcheinander.`,
+      'Versuche erst im Kopf zu rechnen und wähle dann das Ergebnis.',
+      'Bei jeder neuen Runde werden im Spiel zehn Aufgaben aus diesem Pool ausgewählt.'
+    ],
+    questions
+  );
+  item.gameTier = gameTier;
+  item.timesTable = true;
+  item.shufflePractice = true;
+  item.practiceLabel = 'Reihen durcheinander';
+  return item;
+}
+
+const STORAGE_KEY = 'memyo-lernwelt-progress-v7';
+const SETTINGS_KEY = 'memyo-lernwelt-settings-v7';
+const AVATARS = [
+  { id: 'pips', name: 'Pips' },
+  { id: 'luna', name: 'Luna' },
+  { id: 'milo', name: 'Milo' },
+  { id: 'nova', name: 'Nova' }
+];
+
 let progress = loadProgress();
-let view = { screen: 'home', subjectId: null, topicId: null, tab: 'learn' };
+let settings = loadSettings();
+let view = { screen: 'home', subjectId: null, topicId: null, tab: 'game' };
+let onboardingShown = false;
 let practice = null;
 let game = null;
 let deferredInstallPrompt = null;
@@ -142,15 +237,56 @@ const backButton = document.querySelector('#backButton');
 const brandButton = document.querySelector('#brandButton');
 const resetButton = document.querySelector('#resetButton');
 const installButton = document.querySelector('#installButton');
+const profileButton = document.querySelector('#profileButton');
+const profileOverlay = document.querySelector('#profileOverlay');
 const overlay = document.querySelector('#bowlingOverlay');
 
+function normalizeName(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function defaultSettings() {
+  return { mode: 'school', playerName: '', avatar: 'pips', schoolProfiles: {} };
+}
+
+function loadSettings() {
+  try {
+    const data = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {};
+    return {
+      ...defaultSettings(),
+      ...data,
+      schoolProfiles: data.schoolProfiles || {}
+    };
+  } catch {
+    return defaultSettings();
+  }
+}
+function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
+
 function loadProgress() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
-  catch { return {}; }
+  try {
+    const data = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    if (!data.personal && !data.school) return { personal: data, school: {} };
+    return { personal: data.personal || {}, school: data.school || {} };
+  } catch {
+    return { personal: {}, school: {} };
+  }
 }
 function saveProgress() { localStorage.setItem(STORAGE_KEY, JSON.stringify(progress)); }
+
+function currentProgressBucket() {
+  if (settings.mode === 'school' && settings.playerName) {
+    const key = normalizeName(settings.playerName);
+    progress.school[key] = progress.school[key] || {};
+    return progress.school[key];
+  }
+  progress.personal = progress.personal || {};
+  return progress.personal;
+}
+
 function topicProgress(topic) {
-  const solved = new Set(progress[topic.id]?.solved || []);
+  const bucket = currentProgressBucket();
+  const solved = new Set(bucket[topic.id]?.solved || []);
   return Math.round((solved.size / topic.questions.length) * 100);
 }
 function subjectProgress(subject) {
@@ -161,9 +297,123 @@ function currentSubject() { return SUBJECTS.find(s => s.id === view.subjectId); 
 function currentTopic() { return currentSubject()?.topics.find(t => t.id === view.topicId); }
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 
+function currentAvatarId() {
+  return AVATARS.some(item => item.id === settings.avatar) ? settings.avatar : 'pips';
+}
+function currentAvatar() {
+  return AVATARS.find(item => item.id === currentAvatarId()) || AVATARS[0];
+}
+function avatarAsset(id, pose) {
+  return `assets/${id}-${pose}.png`;
+}
+function avatarOptionCard(avatarId) {
+  const avatar = AVATARS.find(item => item.id === avatarId) || AVATARS[0];
+  return `<button class="avatar-option ${currentAvatarId() === avatar.id ? 'active' : ''}" data-avatar-choice="${avatar.id}" type="button"><img src="${avatarAsset(avatar.id,'wait')}" alt=""><span>${avatar.name}</span></button>`;
+}
+function getSortedSchoolProfiles() {
+  return Object.values(settings.schoolProfiles || {}).sort((a, b) => (b.bestScore || 0) - (a.bestScore || 0) || a.name.localeCompare(b.name));
+}
+function saveCurrentProfile(name, avatarId) {
+  const trimmed = String(name || '').trim();
+  if (!trimmed) return { ok: false, message: 'Bitte einen Namen eingeben.' };
+  const key = normalizeName(trimmed);
+  const existing = settings.schoolProfiles[key] || {};
+  settings.playerName = trimmed;
+  settings.avatar = avatarId || existing.avatar || 'pips';
+  settings.schoolProfiles[key] = {
+    name: trimmed,
+    avatar: settings.avatar,
+    bestScore: existing.bestScore || 0,
+    plays: existing.plays || 0,
+    lastScore: existing.lastScore || 0,
+    bestTopic: existing.bestTopic || ''
+  };
+  saveSettings();
+  renderProfileButton();
+  return { ok: true };
+}
+function rememberSchoolScore(score, topicName) {
+  if (settings.mode !== 'school' || !settings.playerName) return;
+  const key = normalizeName(settings.playerName);
+  const existing = settings.schoolProfiles[key] || { name: settings.playerName, avatar: currentAvatarId(), bestScore: 0, plays: 0, lastScore: 0, bestTopic: '' };
+  existing.name = settings.playerName;
+  existing.avatar = currentAvatarId();
+  existing.lastScore = score;
+  existing.plays = (existing.plays || 0) + 1;
+  if ((score || 0) >= (existing.bestScore || 0)) {
+    existing.bestScore = score || 0;
+    existing.bestTopic = topicName || existing.bestTopic || '';
+  }
+  settings.schoolProfiles[key] = existing;
+  saveSettings();
+}
+function renderProfileButton() {
+  const avatarId = currentAvatarId();
+  const label = settings.playerName || 'Schulprofil';
+  profileButton.innerHTML = `<img src="${avatarAsset(avatarId,'wait')}" alt=""><span><strong>${escapeHtml(label)}</strong><small>${settings.mode === 'school' ? 'Schulmodus' : 'Zuhause'}</small></span>`;
+}
+function openProfileOverlay() {
+  const profiles = getSortedSchoolProfiles();
+  profileOverlay.classList.remove('hidden');
+  profileOverlay.setAttribute('aria-hidden', 'false');
+  profileOverlay.innerHTML = `
+    <div class="profile-dialog">
+      <button class="close-overlay" id="closeProfileOverlay" type="button" aria-label="Schließen">×</button>
+      <p class="eyebrow">Spieler wählen</p>
+      <h2>Schulmodus & Figurenwahl</h2>
+      <div class="mode-toggle">
+        <button class="mode-pill ${settings.mode === 'school' ? 'active' : ''}" data-mode-choice="school" type="button">Schulmodus</button>
+        <button class="mode-pill ${settings.mode === 'home' ? 'active' : ''}" data-mode-choice="home" type="button">Zuhause</button>
+      </div>
+      <p class="lead">Im Schulmodus werden keine Konten benötigt. Einfach Namen eingeben, eine Figur auswählen und loslegen. Der Highscore bleibt lokal im Browser gespeichert.</p>
+      <label class="field-label">Name
+        <input id="playerNameInput" class="name-input" maxlength="24" value="${escapeHtml(settings.playerName || '')}" placeholder="z. B. Lina">
+      </label>
+      <div class="avatar-picker">
+        ${AVATARS.map(avatar => `<button class="avatar-option ${currentAvatarId() === avatar.id ? 'active' : ''}" data-avatar-choice="${avatar.id}" type="button"><img src="${avatarAsset(avatar.id,'wait')}" alt=""><span><strong>${avatar.name}</strong><small>${avatar.id === 'pips' ? 'klassisch' : avatar.id === 'luna' ? 'sanft' : avatar.id === 'milo' ? 'frech' : 'mutig'}</small></span></button>`).join('')}
+      </div>
+      ${profiles.length ? `<div class="saved-profiles"><h3>Gespeicherte Namen</h3><div class="saved-profile-list">${profiles.slice(0,8).map(item => `<button class="saved-profile-chip" data-profile-name="${escapeHtml(item.name)}" data-profile-avatar="${item.avatar || 'pips'}" type="button"><img src="${avatarAsset(item.avatar || 'pips','wait')}" alt=""><span>${escapeHtml(item.name)}</span><small>${item.bestScore || 0} Punkte</small></button>`).join('')}</div></div>` : ''}
+      <div class="button-row"><button class="primary-button" id="saveProfileButton" type="button">Speichern</button><button class="secondary-button" id="closeProfileButton" type="button">Schließen</button></div>
+      <p class="overlay-note" id="profileOverlayNote"></p>
+    </div>`;
+
+  let draftAvatar = currentAvatarId();
+  profileOverlay.querySelectorAll('[data-avatar-choice]').forEach(btn => btn.addEventListener('click', () => {
+    draftAvatar = btn.dataset.avatarChoice;
+    profileOverlay.querySelectorAll('[data-avatar-choice]').forEach(item => item.classList.toggle('active', item.dataset.avatarChoice === draftAvatar));
+  }));
+  profileOverlay.querySelectorAll('[data-profile-name]').forEach(btn => btn.addEventListener('click', () => {
+    profileOverlay.querySelector('#playerNameInput').value = btn.dataset.profileName;
+    draftAvatar = btn.dataset.profileAvatar || 'pips';
+    profileOverlay.querySelectorAll('[data-avatar-choice]').forEach(item => item.classList.toggle('active', item.dataset.avatarChoice === draftAvatar));
+  }));
+  profileOverlay.querySelectorAll('[data-mode-choice]').forEach(btn => btn.addEventListener('click', () => {
+    settings.mode = btn.dataset.modeChoice;
+    saveSettings();
+    openProfileOverlay();
+  }));
+  const close = () => { profileOverlay.classList.add('hidden'); profileOverlay.setAttribute('aria-hidden', 'true'); profileOverlay.innerHTML = ''; };
+  profileOverlay.querySelector('#closeProfileOverlay').addEventListener('click', close);
+  profileOverlay.querySelector('#closeProfileButton').addEventListener('click', close);
+  profileOverlay.onclick = event => { if (event.target === profileOverlay) close(); };
+  profileOverlay.querySelector('#saveProfileButton').addEventListener('click', () => {
+    const result = saveCurrentProfile(profileOverlay.querySelector('#playerNameInput').value, draftAvatar);
+    const note = profileOverlay.querySelector('#profileOverlayNote');
+    if (!result.ok) {
+      note.textContent = result.message;
+      return;
+    }
+    note.textContent = 'Gespeichert.';
+    render();
+    setTimeout(close, 250);
+  });
+}
+
 function render() {
-  document.body.classList.toggle('game-mode', view.screen === 'topic' && view.tab === 'game');
+  document.body.classList.toggle('game-mode', view.screen === 'topic');
   backButton.classList.toggle('hidden', view.screen === 'home');
+  renderProfileButton();
+  resetButton.textContent = settings.mode === 'school' && settings.playerName ? 'Stand für diesen Namen löschen' : 'Fortschritt zurücksetzen';
   if (view.screen === 'home') renderHome();
   if (view.screen === 'subject') renderSubject();
   if (view.screen === 'topic') renderTopic();
@@ -171,27 +421,57 @@ function render() {
 }
 
 function renderHome() {
+  const profiles = getSortedSchoolProfiles();
+  const activeProfile = settings.playerName ? settings.schoolProfiles[normalizeName(settings.playerName)] : null;
   app.innerHTML = `
     <section class="hero">
       <div>
         <p class="eyebrow">Kostenloser Lernbereich von memyo</p>
         <h1>Lernwelt</h1>
-        <p class="lead">Alle Themen sind offen. Wähle aus, was gerade in der Schule gebraucht wird, sammle Fortschritt und spiele nach dem Üben.</p>
+        <p class="lead">Alle Themen sind offen. Wähle ein Fach, starte direkt im Lernspiel und löse nach jeder Aufgabe eine kleine Spielaktion.</p>
+        <div class="mode-banner">
+          <span class="pill strong">${settings.mode === 'school' ? 'Schulmodus' : 'Zuhause'}</span>
+          <span>${settings.playerName ? `Spieler: <strong>${escapeHtml(settings.playerName)}</strong>` : 'Noch kein Name gewählt'}</span>
+          <button class="secondary-button small" id="openProfileSetup" type="button">Name & Figur wählen</button>
+        </div>
       </div>
       <div class="hero-art" aria-hidden="true">
         <span class="orbit one"></span><span class="orbit two"></span>
         <span class="symbol s1">∑</span><span class="symbol s2">Aa</span><span class="symbol s3">EN</span>
       </div>
     </section>
+    <section class="school-board">
+      <div class="school-card player-card">
+        <div class="player-card-head">
+          <img src="${avatarAsset(currentAvatarId(),'wait')}" alt="">
+          <div>
+            <h3>${settings.playerName ? escapeHtml(settings.playerName) : 'Noch kein Profil gewählt'}</h3>
+            <p>${settings.mode === 'school' ? 'Einfach Name eingeben, Figur aussuchen und losspielen.' : 'Zuhause-Modus mit gespeichertem Fortschritt.'}</p>
+          </div>
+        </div>
+        <div class="player-card-meta">
+          <div><span>Aktive Figur</span><strong>${escapeHtml(currentAvatar().name)}</strong></div>
+          <div><span>Persönlicher Highscore</span><strong>${activeProfile?.bestScore || 0}</strong></div>
+          <div><span>Gespielte Runden</span><strong>${activeProfile?.plays || 0}</strong></div>
+        </div>
+      </div>
+      <div class="school-card score-card">
+        <div class="score-card-head"><h3>Highscores im Browser</h3><p>Die Liste bleibt lokal auf diesem Gerät gespeichert.</p></div>
+        ${profiles.length ? `<ol class="score-list">${profiles.slice(0,6).map(item => `<li><img src="${avatarAsset(item.avatar || 'pips','wait')}" alt=""><strong>${escapeHtml(item.name)}</strong><span>${item.bestScore || 0} Punkte</span></li>`).join('')}</ol>` : '<p class="notice">Noch keine Highscores vorhanden.</p>'}
+      </div>
+    </section>
     <section aria-labelledby="subjectsTitle">
       <h2 id="subjectsTitle">Was möchtest du heute üben?</h2>
-      <p class="lead">Die Prozentwerte zeigen deinen eigenen Stand – sie sperren keine anderen Themen.</p>
+      <p class="lead">Die Prozentwerte zeigen den Stand des aktuell gewählten Profils – sie sperren keine Themen.</p>
       <div class="subject-grid">
         ${SUBJECTS.map(subjectCard).join('')}
       </div>
     </section>`;
   app.querySelectorAll('[data-subject]').forEach(btn => btn.addEventListener('click', () => openSubject(btn.dataset.subject)));
+  document.querySelector('#openProfileSetup')?.addEventListener('click', openProfileOverlay);
+  if (!settings.playerName && !onboardingShown) { onboardingShown = true; setTimeout(() => openProfileOverlay(), 120); }
 }
+
 
 function subjectCard(subject) {
   const value = subjectProgress(subject);
@@ -203,8 +483,8 @@ function subjectCard(subject) {
   </button>`;
 }
 
-function openSubject(id) { view = { screen:'subject', subjectId:id, topicId:null, tab:'learn' }; render(); }
-function openTopic(id) { view.screen='topic'; view.topicId=id; view.tab='learn'; practice=null; game=null; render(); }
+function openSubject(id) { view = { screen:'subject', subjectId:id, topicId:null, tab:'game' }; render(); }
+function openTopic(id) { view.screen='topic'; view.topicId=id; view.tab='game'; practice=null; game=null; render(); }
 
 function renderSubject() {
   const subject = currentSubject();
@@ -213,7 +493,7 @@ function renderSubject() {
     <section class="page-head" style="--accent:${subject.color}">
       <p class="crumb">memyo Lernwelt · ${subject.name}</p>
       <div class="page-head-row">
-        <div><h2>${subject.name}</h2><p class="lead">Alle Themen sind geöffnet und können in beliebiger Reihenfolge bearbeitet werden.</p></div>
+        <div><h2>${subject.name}</h2><p class="lead">Die Reihen starten bewusst mit dem kleinen 1×1 und werden danach Schritt für Schritt schwerer. Jedes Thema öffnet sofort das Lernspiel.</p></div>
         <div class="page-progress"><div class="progress-row"><div class="progress-track"><div class="progress-fill" style="--progress:${value}%;--accent:${subject.color}"></div></div><strong>${value}%</strong></div></div>
       </div>
     </section>
@@ -229,7 +509,7 @@ function topicCard(subject, topic, index) {
     <span class="topic-number">${String(index + 1).padStart(2,'0')}</span>
     <h3>${topic.name}</h3>
     <p>${topic.learn[0]}</p>
-    <div class="topic-meta"><span class="pill">Lernen</span><span class="pill">Üben</span><span class="pill">Spielen</span>${topic.poster ? '<span class="pill">Lernplakat folgt</span>' : ''}</div>
+    <div class="topic-meta"><span class="pill">Direkt starten</span><span class="pill">${topic.questions.length} Aufgaben</span><span class="pill">Spiel nach jeder Aufgabe</span>${topic.poster ? '<span class="pill">Wissen & Quiz</span>' : ''}</div>
     <div class="progress-row"><div class="progress-track"><div class="progress-fill" style="--progress:${value}%"></div></div><strong>${value}%</strong></div>
   </button>`;
 }
@@ -238,51 +518,38 @@ function renderTopic() {
   const subject = currentSubject();
   const topic = currentTopic();
   const value = topicProgress(topic);
-  const isGame = view.tab === 'game';
-  document.body.classList.toggle('game-mode', isGame);
+  document.body.classList.add('game-mode');
   app.innerHTML = `
-    ${isGame ? '' : `<section class="page-head" style="--accent:${subject.color}">
-      <p class="crumb">${subject.name} · ${topic.name}</p>
-      <h2>${topic.name}</h2>
-    </section>`}
-    <div class="topic-layout ${isGame ? 'game-focus-layout' : ''}" style="--accent:${subject.color}">
-      <section class="panel ${isGame ? 'game-panel' : ''}">
-        ${isGame ? `<div class="game-topic-label">${escapeHtml(subject.name)} · ${escapeHtml(topic.name)}</div>` : `<div class="tabbar" role="tablist" aria-label="Lernbereiche">
-          ${tabButton('learn','Lernen')}${tabButton('practice','Üben')}${tabButton('game','Spielen')}
-        </div>`}
+    <section class="game-page-head" style="--accent:${subject.color}">
+      <div>
+        <p class="crumb">${subject.name} · ${topic.name}</p>
+        <h2>${topic.name}</h2>
+        <p class="lead">Direktes Lernspiel: erst Aufgabe lösen, dann sofort eine Spielaktion. Keine extra Reiter – alles läuft in einem Ablauf.</p>
+      </div>
+      <div class="game-page-meta">
+        <span class="pill strong">${topic.questions.length} Aufgaben im Pool</span>
+        <span class="pill">Fortschritt ${value}%</span>
+      </div>
+    </section>
+    <div class="topic-layout game-focus-layout" style="--accent:${subject.color}">
+      <section class="panel game-panel solo-game-panel">
+        <div class="game-topic-label">${escapeHtml(subject.name)} · ${escapeHtml(topic.name)}</div>
         <div id="topicContent"></div>
       </section>
-      ${isGame ? '' : `<aside class="panel side-panel">
-        <div class="stat-card"><span>Fortschritt</span><strong>${value}%</strong><div class="progress-track"><div class="progress-fill" style="--progress:${value}%"></div></div></div>
-        <div class="stat-card"><span>Richtig gelöst</span><strong>${new Set(progress[topic.id]?.solved || []).size}/${topic.questions.length}</strong></div>
-        <p class="notice">Das nächste Thema bleibt immer offen. Der Fortschritt dient nur als Orientierung.</p>
-      </aside>`}
     </div>`;
-  app.querySelectorAll('[data-tab]').forEach(btn => btn.addEventListener('click', () => { view.tab=btn.dataset.tab; if(view.tab!=='practice') practice=null; if(view.tab!=='game') game=null; renderTopic(); }));
   renderTopicContent();
 }
-function tabButton(id,label) { return `<button class="tab ${view.tab===id?'active':''}" data-tab="${id}" type="button">${label}</button>`; }
+function tabButton(id,label) { return ''; }
 
 function renderTopicContent() {
-  const content = document.querySelector('#topicContent');
-  const topic = currentTopic();
-  if (view.tab === 'learn') {
-    content.innerHTML = `${topic.poster ? `<div class="empty-poster"><div><h3>Lernplakat wird ergänzt</h3><p>Hier kann später ein selbst erstelltes NotebookLM-Lernplakat eingefügt werden – ohne Bilder aus dem Schulbuch.</p></div></div>` : ''}
-      <h3>Das lernst du hier</h3>
-      <ul class="learn-list">${topic.learn.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul>
-      <div class="button-row"><button class="primary-button" id="startPractice" type="button">Jetzt üben</button><button class="secondary-button" id="startGame" type="button">Direkt zum Lernspiel</button></div>`;
-    document.querySelector('#startPractice').addEventListener('click', () => { view.tab='practice'; renderTopic(); });
-    document.querySelector('#startGame').addEventListener('click', () => { view.tab='game'; renderTopic(); });
-  } else if (view.tab === 'practice') {
-    if (!practice) startPractice(); else renderQuestion();
-  } else {
-    if (!game) startGame(); else renderGame();
-  }
+  if (!game) startGame();
+  else renderGame();
 }
 
 function startPractice() {
   const topic = currentTopic();
-  practice = { order: [...topic.questions], index:0, correct:0, attempts:0, locked:false };
+  const order = topic.shufflePractice ? shuffle(topic.questions) : [...topic.questions];
+  practice = { order, index:0, correct:0, attempts:0, locked:false };
   renderQuestion();
 }
 function renderQuestion() {
@@ -314,9 +581,11 @@ function checkPracticeAnswer(button, q) {
   }
 }
 function markSolved(topic,id) {
-  const entry = progress[topic.id] || { solved: [] };
+  const bucket = currentProgressBucket();
+  const entry = bucket[topic.id] || { solved: [] };
   if (!entry.solved.includes(id)) entry.solved.push(id);
-  progress[topic.id]=entry; saveProgress();
+  bucket[topic.id]=entry;
+  saveProgress();
 }
 function renderPracticeSummary() {
   const content = document.querySelector('#topicContent');
@@ -335,6 +604,10 @@ function showBowling(done) {
 
 
 function gameDifficulty(index) {
+  const tier = currentTopic()?.gameTier;
+  if (tier === 1) return { label: 'leicht', max: 5 };
+  if (tier === 2) return { label: 'mittel', max: 10 };
+  if (tier === 3) return { label: 'schwer', max: 15 };
   if (index < 4) return { label: 'leicht', max: 5 };
   if (index < 8) return { label: 'mittel', max: 10 };
   return { label: 'schwer', max: 15 };
@@ -351,16 +624,18 @@ function shuffle(array) {
 
 function createStars() {
   return [
-    { x: 9,  y: 10, lit: false },
-    { x: 19, y: 18, lit: false },
-    { x: 30, y: 9,  lit: false },
-    { x: 41, y: 17, lit: false },
-    { x: 52, y: 8,  lit: false },
-    { x: 63, y: 18, lit: false },
-    { x: 74, y: 9,  lit: false },
-    { x: 85, y: 17, lit: false },
-    { x: 93, y: 8,  lit: false },
-    { x: 48, y: 24, lit: false }
+    { x: 8,  y: 10, lit: false },
+    { x: 17, y: 17, lit: false },
+    { x: 26, y: 8,  lit: false },
+    { x: 35, y: 15, lit: false },
+    { x: 44, y: 9,  lit: false },
+    { x: 53, y: 18, lit: false },
+    { x: 62, y: 8,  lit: false },
+    { x: 71, y: 16, lit: false },
+    { x: 80, y: 9,  lit: false },
+    { x: 89, y: 15, lit: false },
+    { x: 48, y: 24, lit: false },
+    { x: 58, y: 27, lit: false }
   ];
 }
 
@@ -424,7 +699,7 @@ function cleanupGameInput() {
 function startGame() {
   const topic = currentTopic();
   game = {
-    rounds: buildGameRounds(topic, 10),
+    rounds: buildGameRounds(topic, 12),
     index: 0,
     points: 0,
     stars: createStars(),
@@ -435,7 +710,8 @@ function startGame() {
     finished: false,
     solvingErrors: 0,
     lastResult: null,
-    summary: { correctAnswers: 0, totalErrors: 0 }
+    summary: { correctAnswers: 0, totalErrors: 0 },
+    scoreSaved: false
   };
   renderGame();
 }
@@ -447,12 +723,18 @@ function renderGame() {
   if (game.finished) {
     const lit = game.stars.filter(star => star.lit).length;
     const maxPoints = game.rounds.reduce((sum, _, i) => sum + gameDifficulty(i).max, 0);
+    if (!game.scoreSaved) {
+      rememberSchoolScore(game.points, currentTopic()?.name || '');
+      game.scoreSaved = true;
+    }
+    const activeProfile = settings.playerName ? settings.schoolProfiles[normalizeName(settings.playerName)] : null;
     content.innerHTML = `
       <div class="game-summary-screen">
         <div class="summary-stars">${game.stars.map(star => `<span class="${star.lit ? 'lit' : ''}">★</span>`).join('')}</div>
         <p class="eyebrow">Runde abgeschlossen</p>
         <h2>${game.points} Punkte</h2>
-        <p class="lead">${lit} von ${game.stars.length} Sternen leuchten.</p>
+        <p class="lead">${settings.playerName ? `${escapeHtml(settings.playerName)}, ` : ''}${lit} von ${game.stars.length} Sternen leuchten.</p>
+        ${activeProfile ? `<p class="summary-highscore">Bester Stand von ${escapeHtml(activeProfile.name)}: <strong>${activeProfile.bestScore || 0} Punkte</strong></p>` : ''}
         <div class="game-summary-grid">
           <div class="summary-box"><span>Aufgaben</span><strong>${game.summary.correctAnswers}/${game.rounds.length}</strong></div>
           <div class="summary-box"><span>Sterne</span><strong>${lit}/${game.stars.length}</strong></div>
@@ -461,11 +743,11 @@ function renderGame() {
         </div>
         <div class="button-row summary-buttons">
           <button class="primary-button" id="restartGame" type="button">Noch einmal spielen</button>
-          <button class="secondary-button" id="backLearn" type="button">Zum Lernen</button>
+          <button class="secondary-button" id="backLearn" type="button">Zur Themenübersicht</button>
         </div>
       </div>`;
     document.querySelector('#restartGame').addEventListener('click',()=>{game=null;renderTopic();});
-    document.querySelector('#backLearn').addEventListener('click',()=>{view.tab='learn';game=null;renderTopic();});
+    document.querySelector('#backLearn').addEventListener('click',()=>{game=null; view.screen='subject'; view.topicId=null; view.tab='game'; render();});
     return;
   }
 
@@ -511,10 +793,10 @@ function renderGame() {
 
         <div class="stage-ground"></div>
         <div id="pips" class="pips-avatar ${runVisible ? 'running' : 'waiting'}" style="left:${game.pipsX}%" aria-label="Pips">
-          <img class="pips-sprite pips-wait" src="assets/pips-wait.png" alt="">
-          <img class="pips-sprite pips-run-a" src="assets/pips-run-a.png" alt="">
-          <img class="pips-sprite pips-run-b" src="assets/pips-run-b.png" alt="">
-          <img class="pips-sprite pips-fly" src="assets/pips-fly.png" alt="">
+          <img class="pips-sprite pips-wait" src="${avatarAsset(currentAvatarId(),'wait')}" alt="">
+          <img class="pips-sprite pips-run-a" src="${avatarAsset(currentAvatarId(),'run-a')}" alt="">
+          <img class="pips-sprite pips-run-b" src="${avatarAsset(currentAvatarId(),'run-b')}" alt="">
+          <img class="pips-sprite pips-fly" src="${avatarAsset(currentAvatarId(),'fly')}" alt="">
         </div>
       </div>
     </div>`;
@@ -673,19 +955,36 @@ function triggerPipsFlight() {
 }
 
 backButton.addEventListener('click', () => {
-  if (view.screen === 'topic' && view.tab === 'game') {
+  if (view.screen === 'topic') {
     cleanupGameInput();
     game = null;
-    view.tab = 'learn';
-    renderTopic();
+    view.screen = 'subject';
+    view.topicId = null;
+    view.tab = 'game';
+    render();
     return;
   }
-  if (view.screen === 'topic') { view.screen='subject'; view.topicId=null; }
-  else if (view.screen === 'subject') { view={screen:'home',subjectId:null,topicId:null,tab:'learn'}; }
+  if (view.screen === 'subject') { view={screen:'home',subjectId:null,topicId:null,tab:'game'}; render(); return; }
   render();
 });
-brandButton.addEventListener('click',()=>{view={screen:'home',subjectId:null,topicId:null,tab:'learn'};render();});
-resetButton.addEventListener('click',()=>{ if(confirm('Soll der gesamte Fortschritt auf diesem Gerät wirklich gelöscht werden?')) { progress={}; saveProgress(); render(); } });
+brandButton.addEventListener('click',()=>{cleanupGameInput(); game=null; view={screen:'home',subjectId:null,topicId:null,tab:'game'};render();});
+profileButton.addEventListener('click', openProfileOverlay);
+resetButton.addEventListener('click',()=>{
+  if (settings.mode === 'school' && settings.playerName) {
+    const key = normalizeName(settings.playerName);
+    if (confirm(`Soll der gespeicherte Stand für ${settings.playerName} auf diesem Gerät gelöscht werden?`)) {
+      delete progress.school[key];
+      delete settings.schoolProfiles[key];
+      settings.playerName = '';
+      settings.avatar = 'pips';
+      saveProgress();
+      saveSettings();
+      render();
+    }
+    return;
+  }
+  if(confirm('Soll der gesamte Fortschritt auf diesem Gerät wirklich gelöscht werden?')) { progress={ personal:{}, school:{} }; saveProgress(); render(); }
+});
 
 window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); deferredInstallPrompt=event; installButton.classList.remove('hidden'); });
 installButton.addEventListener('click', async()=>{ if(!deferredInstallPrompt) return; deferredInstallPrompt.prompt(); await deferredInstallPrompt.userChoice; deferredInstallPrompt=null; installButton.classList.add('hidden'); });

@@ -1,35 +1,20 @@
-MEMYO LERNWELT – TESTVERSION 4
+MEMYO LERNWELT – TESTVERSION 8
 
-NEU IM MATHE-LERNSPIEL:
-- Sterne oben, Lernaufgabe in der Mitte, Pips ganz unten
-- Pips wartet ruhig, bis die Aufgabe richtig gelöst wurde
-- danach verschwindet die Aufgabe und Pips läuft schnell hin und her
-- ein Tipp, Klick oder die Leertaste startet genau einen geraden Flug nach oben
-- getroffen wird mit der Breite von Pips und seinen Flügeln; Pips hat keine zusätzlichen Arme
-- dunkle Sterne werden bei einem Treffer hell und bleiben hell
-- je nach Genauigkeit und Rundenstufe gibt es 0, 5, 10 oder 15 Punkte
-- nach dem Flug erscheint die nächste Aufgabe
-- zehn Aufgaben pro Runde und eine Punkteauswertung am Schluss
-- für „Ganze Zahlen“ werden neue Rechenaufgaben für jede Runde erzeugt
-- responsive Bedienung für Handy, Tablet und PC
+NEU IN VERSION 8:
+- schönerer Hintergrund im Spielbereich mit weicher Abendhimmel-Optik
+- echte Figuren-Auswahlliste mit vier wählbaren Figuren
+- beim ersten Öffnen erscheint direkt die Auswahl für Name und Figur
+- keine Reiter „Lernen / Üben / Spielen“ mehr
+- Themen öffnen jetzt direkt das Lernspiel
+- nach jeder richtig gelösten Aufgabe folgt sofort die Spielaktion
+- für Mathe weiterhin Schwerpunkt auf dem kleinen 1x1: erst einzelne Reihen, dann schwerer
+- etwas längere Runden mit 12 Aufgaben und 12 Sternzielen
 
-WEITERHIN ENTHALTEN:
-- Mathe, Deutsch, Englisch und Natur
-- alle Themen von Anfang an geöffnet
-- Fortschritt pro Thema und Fach in Prozent
-- lokale Speicherung auf dem Gerät
-- Lernen / Üben / Spielen
-- vorbereitete Plätze für eigene Natur-Lernplakate
-- installierbare PWA und Offline-Cache
+SCHULMODUS:
+- keine Anmeldung nötig
+- Name eingeben, Figur wählen, loslegen
+- Highscore und Fortschritt werden lokal im Browser gespeichert
 
-WICHTIG:
-- Es wurden keine Bilder oder Texte aus den Schulbüchern übernommen.
-- Die Themenstruktur wurde aus den fotografierten Materialien abgeleitet.
-- Die Aufgaben sind neu formulierte Beispielaufgaben und noch keine vollständige digitale Umsetzung des gesamten Mathebuchs.
-- Hauptfarben aus dem bisherigen memyo-Auftritt: #94BBD9 und #9E9E97.
-
-GITHUB:
-Den Inhalt dieses Ordners in das bestehende Repository hochladen und gleichnamige Dateien ersetzen. Danach GitHub Pages kurz neu veröffentlichen lassen. Die Versionsnummern in index.html und service-worker.js wurden auf v4 erhöht, damit der alte App-Cache ersetzt wird.
-
-
-Version 5: Pips als Chibi-Sprite eingebaut. Laufgeschwindigkeit leicht erhöht; gerader Flug deutlich verlangsamt.
+WICHTIG FÜR GITHUB:
+- den gesamten Ordnerinhalt inklusive assets hochladen und vorhandene Dateien ersetzen
+- danach am besten einmal mit ?v=8 öffnen, damit der neue Stand sicher geladen wird

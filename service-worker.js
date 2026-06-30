@@ -1,16 +1,28 @@
-const CACHE = 'memyo-lernwelt-v5';
+const CACHE = 'memyo-lernwelt-v8';
 const ASSETS = [
   './',
   './index.html',
-  './styles.css?v=5',
-  './app.js?v=5',
+  './styles.css?v=8',
+  './app.js?v=8',
   './manifest.webmanifest',
   './icon-192.png',
   './icon-512.png',
-  './assets/pips-wait.png',
+    './assets/pips-wait.png',
   './assets/pips-run-a.png',
   './assets/pips-run-b.png',
-  './assets/pips-fly.png'
+  './assets/pips-fly.png',
+  './assets/luna-wait.png',
+  './assets/luna-run-a.png',
+  './assets/luna-run-b.png',
+  './assets/luna-fly.png',
+  './assets/milo-wait.png',
+  './assets/milo-run-a.png',
+  './assets/milo-run-b.png',
+  './assets/milo-fly.png',
+  './assets/nova-wait.png',
+  './assets/nova-run-a.png',
+  './assets/nova-run-b.png',
+  './assets/nova-fly.png'
 ];
 
 self.addEventListener('install', event => {
