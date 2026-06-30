@@ -1,21 +1,13 @@
-MEMYO LERNWELT – TESTVERSION 9
+MEMYO LERNWELT – TESTVERSION 10
 
-NEU IN VERSION 9:
-- schwereres Sternenspiel
-- Pips/Figur läuft etwas schneller hin und her
-- die Trefferzone ist enger und verlangt genaueres Timing
-- Figuren können jetzt erste Extras freischalten
-- Extras werden über den Highscore freigeschaltet
-- aktuell enthaltene Extras: Sternclip, Mondumhang, Skateboard, Kristallfunke
-- Extras lassen sich im Schulmodus bei der Figurenwahl auswählen
-- auf der Startseite und im Profil wird das gewählte Extra angezeigt
-- neue Freischaltungen werden nach einer Runde direkt angezeigt
+NEU IN VERSION 10:
+- schönere Spielfiguren aus der neuen Tierreihe
+- Pips mit geknicktem Ohr
+- Figurenwahl: Pips, Hase, Fuchs und Reh
+- Pips-Flug und Sprung deutlich langsamer und realistischer
+- gleiche langsamere Aufwärtsbewegung auch für die anderen Figuren
+- weiterhin Schulmodus ohne Anmeldung, mit Namenswahl und lokalem Highscore
 
-WICHTIG:
-- keine Anmeldung nötig
-- Schulmodus: Name eingeben, Figur wählen, losspielen
-- Highscore und Fortschritt bleiben lokal im Browser gespeichert
-
-GITHUB:
-- gesamten Ordnerinhalt inklusive assets hochladen und vorhandene Dateien ersetzen
-- danach am besten mit ?v=9 öffnen
+HINWEIS:
+- Bitte den gesamten Ordnerinhalt inklusive assets hochladen und vorhandene Dateien ersetzen.
+- Danach die Seite mit ?v=10 öffnen.

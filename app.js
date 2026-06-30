@@ -215,13 +215,13 @@ function mixedTimesTopic(id, name, rows, gameTier, count) {
   return item;
 }
 
-const STORAGE_KEY = 'memyo-lernwelt-progress-v9';
-const SETTINGS_KEY = 'memyo-lernwelt-settings-v9';
+const STORAGE_KEY = 'memyo-lernwelt-progress-v10';
+const SETTINGS_KEY = 'memyo-lernwelt-settings-v10';
 const AVATARS = [
   { id: 'pips', name: 'Pips' },
-  { id: 'luna', name: 'Luna' },
-  { id: 'milo', name: 'Milo' },
-  { id: 'nova', name: 'Nova' }
+  { id: 'hare', name: 'Hase' },
+  { id: 'fox', name: 'Fuchs' },
+  { id: 'deer', name: 'Reh' }
 ];
 const ACCESSORIES = [
   { id: 'none', name: 'Ohne Extra', icon: '·', unlock: 0, desc: 'pur' },
@@ -430,7 +430,7 @@ function openProfileOverlay() {
         <input id="playerNameInput" class="name-input" maxlength="24" value="${escapeHtml(settings.playerName || '')}" placeholder="z. B. Lina">
       </label>
       <div class="avatar-picker">
-        ${AVATARS.map(avatar => `<button class="avatar-option ${currentAvatarId() === avatar.id ? 'active' : ''}" data-avatar-choice="${avatar.id}" type="button"><img src="${avatarAsset(avatar.id,'wait')}" alt=""><span><strong>${avatar.name}</strong><small>${avatar.id === 'pips' ? 'klassisch' : avatar.id === 'luna' ? 'sanft' : avatar.id === 'milo' ? 'frech' : 'mutig'}</small></span></button>`).join('')}
+        ${AVATARS.map(avatar => `<button class="avatar-option ${currentAvatarId() === avatar.id ? 'active' : ''}" data-avatar-choice="${avatar.id}" type="button"><img src="${avatarAsset(avatar.id,'wait')}" alt=""><span><strong>${avatar.name}</strong><small>${avatar.id === 'pips' ? 'Fledermaus' : avatar.id === 'hare' ? 'hüpft schnell' : avatar.id === 'fox' ? 'schlau & flink' : 'leicht & elegant'}</small></span></button>`).join('')}
       </div>
       <div class="accessory-section">
         <div class="section-head"><h3>Freigeschaltete Extras</h3><small>durch Highscores</small></div>
@@ -1004,7 +1004,7 @@ function triggerPipsFlight() {
     { transform: pips.classList.contains('facing-left') ? `scaleX(-1) translateY(-${flightDistance}px)` : `translateY(-${flightDistance}px)`, offset: .5 },
     { transform: pips.classList.contains('facing-left') ? 'scaleX(-1) translateY(0)' : 'translateY(0)' }
   ], {
-    duration: 1480,
+    duration: 1950,
     easing: 'cubic-bezier(.32,.72,.28,1)'
   });
 

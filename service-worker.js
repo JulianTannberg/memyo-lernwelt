@@ -1,9 +1,9 @@
-const CACHE = 'memyo-lernwelt-v9';
+const CACHE = 'memyo-lernwelt-v10';
 const ASSETS = [
   './',
   './index.html',
-  './styles.css?v=9',
-  './app.js?v=9',
+  './styles.css?v=10',
+  './app.js?v=10',
   './manifest.webmanifest',
   './icon-192.png',
   './icon-512.png',
@@ -11,18 +11,18 @@ const ASSETS = [
   './assets/pips-run-a.png',
   './assets/pips-run-b.png',
   './assets/pips-fly.png',
-  './assets/luna-wait.png',
-  './assets/luna-run-a.png',
-  './assets/luna-run-b.png',
-  './assets/luna-fly.png',
-  './assets/milo-wait.png',
-  './assets/milo-run-a.png',
-  './assets/milo-run-b.png',
-  './assets/milo-fly.png',
-  './assets/nova-wait.png',
-  './assets/nova-run-a.png',
-  './assets/nova-run-b.png',
-  './assets/nova-fly.png'
+  './assets/hare-wait.png',
+  './assets/hare-run-a.png',
+  './assets/hare-run-b.png',
+  './assets/hare-fly.png',
+  './assets/fox-wait.png',
+  './assets/fox-run-a.png',
+  './assets/fox-run-b.png',
+  './assets/fox-fly.png',
+  './assets/deer-wait.png',
+  './assets/deer-run-a.png',
+  './assets/deer-run-b.png',
+  './assets/deer-fly.png'
 ];
 
 self.addEventListener('install', event => {
