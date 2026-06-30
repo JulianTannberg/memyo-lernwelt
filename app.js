@@ -329,40 +329,314 @@ function showBowling(done) {
   setTimeout(()=>{ overlay.classList.remove('show','animate'); overlay.setAttribute('aria-hidden','true'); done(); }, 1700);
 }
 
+
+function gameDifficulty(index) {
+  if (index < 3) return { label: 'leicht', max: 5 };
+  if (index < 6) return { label: 'mittel', max: 10 };
+  return { label: 'schwer', max: 15 };
+}
+
+function shuffle(array) {
+  const copy = [...array];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+function createStars() {
+  return [
+    { x: 14, y: 19, lit: false },
+    { x: 28, y: 11, lit: false },
+    { x: 41, y: 22, lit: false },
+    { x: 54, y: 12, lit: false },
+    { x: 67, y: 21, lit: false },
+    { x: 79, y: 13, lit: false },
+    { x: 90, y: 24, lit: false },
+    { x: 48, y: 6, lit: false }
+  ];
+}
+
+let activeGameKeyHandler = null;
+
+function cleanupGameInput() {
+  if (activeGameKeyHandler) {
+    window.removeEventListener('keydown', activeGameKeyHandler);
+    activeGameKeyHandler = null;
+  }
+  if (game?.loopId) {
+    cancelAnimationFrame(game.loopId);
+    game.loopId = null;
+  }
+}
+
 function startGame() {
   const topic = currentTopic();
-  const rounds = Array.from({length:5}, (_,i) => topic.questions[i % topic.questions.length]);
-  game = { step:0, rounds, locked:false, finished:false };
+  const source = shuffle(topic.questions);
+  const rounds = [];
+  while (rounds.length < 8) rounds.push(...shuffle(source));
+  game = {
+    rounds: rounds.slice(0, 8),
+    index: 0,
+    points: 0,
+    stars: createStars(),
+    phase: 'question',
+    pipsX: 18,
+    dir: 1,
+    loopId: null,
+    finished: false,
+    solvingErrors: 0,
+    lastResult: null,
+    summary: { correctAnswers: 0, totalErrors: 0 }
+  };
   renderGame();
 }
+
 function renderGame() {
+  cleanupGameInput();
   const content = document.querySelector('#topicContent');
+
   if (game.finished) {
-    content.innerHTML = `<div class="question-wrap"><div class="game-stage"><div class="confetti"></div><div class="avatar" style="--accent:${currentSubject().color};left:88%"><div class="head"></div><div class="body"></div></div></div><h2>Ziel erreicht!</h2><p class="lead">Du hast den Lernpfad geschafft. Das Thema bleibt jederzeit wieder spielbar.</p><button class="primary-button" id="restartGame" type="button">Noch einmal spielen</button></div>`;
+    const lit = game.stars.filter(star => star.lit).length;
+    const maxPoints = game.rounds.reduce((sum, _, i) => sum + gameDifficulty(i).max, 0);
+    content.innerHTML = `
+      <div class="question-wrap">
+        <div class="question-summary">
+          <p class="eyebrow">Runde abgeschlossen</p>
+          <h2>${game.points} Punkte</h2>
+          <p class="lead">${lit} von ${game.stars.length} Sternen leuchten. Du hast ${game.summary.correctAnswers} Aufgaben gelöst.</p>
+          <div class="game-summary-grid">
+            <div class="summary-box"><span>Sterne</span><strong>${lit}/${game.stars.length}</strong></div>
+            <div class="summary-box"><span>Versuche</span><strong>${game.rounds.length}</strong></div>
+            <div class="summary-box"><span>Maximal</span><strong>${maxPoints}</strong></div>
+            <div class="summary-box"><span>Fehler beim Lösen</span><strong>${game.summary.totalErrors}</strong></div>
+          </div>
+          <div class="button-row">
+            <button class="primary-button" id="restartGame" type="button">Noch einmal spielen</button>
+            <button class="secondary-button" id="backLearn" type="button">Zum Lernen</button>
+          </div>
+        </div>
+      </div>`;
     document.querySelector('#restartGame').addEventListener('click',()=>{game=null;renderTopic();});
+    document.querySelector('#backLearn').addEventListener('click',()=>{view.tab='learn';game=null;renderTopic();});
     return;
   }
-  const q = game.rounds[game.step];
-  const stones = Array.from({length:5},(_,i)=>`<span class="stone" style="left:${18+i*17}%"></span>`).join('');
-  content.innerHTML = `<div class="question-wrap">
-    <div class="game-status"><span>Lernpfad</span><strong>${game.step}/5 Schritte</strong></div>
-    <div class="game-stage"><span class="cloud c1"></span><span class="cloud c2"></span>${stones}<div id="avatar" class="avatar" style="--accent:${currentSubject().color};left:${4+game.step*17}%"><div class="head"></div><div class="body"></div></div></div>
-    <div class="question">${escapeHtml(q.q)}</div>
-    <div class="answers">${q.options.map(o=>`<button class="answer-button" data-game-answer="${escapeHtml(o)}" type="button">${escapeHtml(o)}</button>`).join('')}</div>
-    <div class="feedback" id="gameFeedback" aria-live="polite"></div>
-  </div>`;
-  content.querySelectorAll('[data-game-answer]').forEach(btn=>btn.addEventListener('click',()=>checkGameAnswer(btn,q)));
+
+  const q = game.rounds[game.index];
+  const difficulty = gameDifficulty(game.index);
+  const litCount = game.stars.filter(star => star.lit).length;
+  const remaining = game.stars.length - litCount;
+  const result = game.lastResult ? `
+      <div class="mini-result ${game.lastResult.points > 0 ? 'good' : 'miss'}">${escapeHtml(game.lastResult.message)}</div>` : '';
+  const prompt = game.phase === 'question'
+    ? 'Löse zuerst die Aufgabe.'
+    : game.phase === 'run'
+      ? 'Jetzt im richtigen Moment tippen oder Leertaste drücken.'
+      : 'Pips fliegt …';
+
+  content.innerHTML = `
+    <div class="question-wrap game-wrap">
+      <div class="game-status board-status">
+        <span><strong>Punkte:</strong> ${game.points}</span>
+        <span><strong>Sterne:</strong> ${litCount}/${game.stars.length}</span>
+        <span><strong>Aufgabe:</strong> ${game.index + 1}/${game.rounds.length}</span>
+      </div>
+      <div class="pips-stage" id="pipsStage" aria-label="Pips-Spielbereich">
+        <div class="stage-sky"></div>
+        <div class="stars-layer">
+          ${game.stars.map((star, i) => `
+            <div class="target-star ${star.lit ? 'lit' : 'dark'}" data-star-index="${i}" style="left:${star.x}%; top:${star.y}%">
+              <span class="star-glow"></span>
+              <span class="star-core">★</span>
+            </div>`).join('')}
+        </div>
+        <div class="stage-ground"></div>
+        <div id="pips" class="pips-avatar ${game.phase === 'run' ? 'running' : 'waiting'}" style="left:${game.pipsX}%">
+          <span class="ear left"></span>
+          <span class="ear right"></span>
+          <span class="wing left"></span>
+          <span class="wing right"></span>
+          <span class="head"></span>
+          <span class="body"></span>
+          <span class="eye left"></span>
+          <span class="eye right"></span>
+        </div>
+        <div class="stage-prompt">${escapeHtml(prompt)}</div>
+      </div>
+      <div class="question-bar">
+        <div class="question-meta-row">
+          <span class="pill">${difficulty.label}</span>
+          <span class="pill">0 / 5 / 10 / 15 je nach Schwierigkeit</span>
+        </div>
+        ${result}
+        <div class="question compact">${escapeHtml(q.q)}</div>
+        <div class="answers ${game.phase !== 'question' ? 'disabled' : ''}">
+          ${q.options.map(o => `<button class="answer-button" ${game.phase !== 'question' ? 'disabled' : ''} data-game-answer="${escapeHtml(o)}" type="button">${escapeHtml(o)}</button>`).join('')}
+        </div>
+        <div class="feedback ${game.solvingErrors ? 'try' : ''}" id="gameFeedback" aria-live="polite">${game.phase === 'question' && game.solvingErrors ? `Noch nicht. Tipp: ${escapeHtml(q.hint)}` : ''}</div>
+      </div>
+    </div>`;
+
+  content.querySelectorAll('[data-game-answer]').forEach(btn => btn.addEventListener('click',()=>checkGameAnswer(btn,q)));
+  mountPipsGame();
 }
-function checkGameAnswer(button,q) {
-  if(game.locked) return;
-  const feedback=document.querySelector('#gameFeedback');
-  if(button.dataset.gameAnswer===q.correct) {
-    game.locked=true; button.classList.add('correct'); feedback.className='feedback good'; feedback.textContent='Richtig – weiter zum nächsten Stein!';
-    const avatar=document.querySelector('#avatar'); avatar.classList.add('jump');
-    setTimeout(()=>{game.step++;game.locked=false;if(game.step>=5) game.finished=true;renderTopic();},700);
+
+function mountPipsGame() {
+  const stage = document.querySelector('#pipsStage');
+  const pips = document.querySelector('#pips');
+  if (!stage || !pips || !game) return;
+
+  pips.style.left = `${game.pipsX}%`;
+
+  activeGameKeyHandler = (event) => {
+    if ((event.code === 'Space' || event.code === 'Enter') && game?.phase === 'run') {
+      event.preventDefault();
+      triggerPipsFlight();
+    }
+  };
+  window.addEventListener('keydown', activeGameKeyHandler);
+
+  stage.addEventListener('click', () => {
+    if (game?.phase === 'run') triggerPipsFlight();
+  });
+
+  if (game.phase === 'run') startPipsRun();
+}
+
+function startPipsRun() {
+  cleanupGameInput();
+  const pips = document.querySelector('#pips');
+  const stage = document.querySelector('#pipsStage');
+  if (!pips || !stage || !game) return;
+
+  activeGameKeyHandler = (event) => {
+    if ((event.code === 'Space' || event.code === 'Enter') && game?.phase === 'run') {
+      event.preventDefault();
+      triggerPipsFlight();
+    }
+  };
+  window.addEventListener('keydown', activeGameKeyHandler);
+  stage.addEventListener('click', () => {
+    if (game?.phase === 'run') triggerPipsFlight();
+  }, { once: false });
+
+  let last = null;
+  const minX = 10;
+  const maxX = 92;
+  const speed = 0.025;
+
+  const frame = (ts) => {
+    if (!game || game.phase !== 'run') return;
+    if (last == null) last = ts;
+    const dt = ts - last;
+    last = ts;
+    game.pipsX += game.dir * dt * speed;
+    if (game.pipsX >= maxX) { game.pipsX = maxX; game.dir = -1; }
+    if (game.pipsX <= minX) { game.pipsX = minX; game.dir = 1; }
+    pips.style.left = `${game.pipsX}%`;
+    game.loopId = requestAnimationFrame(frame);
+  };
+  game.loopId = requestAnimationFrame(frame);
+}
+
+function checkGameAnswer(button, q) {
+  if (!game || game.phase !== 'question') return;
+  const feedback = document.querySelector('#gameFeedback');
+  if (button.dataset.gameAnswer === q.correct) {
+    button.classList.add('correct');
+    game.summary.correctAnswers++;
+    game.solvingErrors = 0;
+    game.phase = 'run';
+    markSolved(currentTopic(), q.id);
+    if (feedback) {
+      feedback.className = 'feedback good';
+      feedback.textContent = 'Richtig! Jetzt ein Tipp oder Klick für einen geraden Flug nach oben.';
+    }
+    setTimeout(() => renderGame(), 200);
   } else {
-    button.classList.add('wrong'); feedback.className='feedback try'; feedback.textContent=`Versuche es noch einmal. ${q.hint}`;
+    game.solvingErrors++;
+    game.summary.totalErrors++;
+    button.classList.add('wrong');
+    if (feedback) {
+      feedback.className = 'feedback try';
+      feedback.textContent = `Noch nicht. Tipp: ${q.hint}`;
+    }
   }
+}
+
+function triggerPipsFlight() {
+  if (!game || game.phase !== 'run') return;
+  const stage = document.querySelector('#pipsStage');
+  const pips = document.querySelector('#pips');
+  if (!stage || !pips) return;
+
+  game.phase = 'fly';
+  cleanupGameInput();
+
+  const difficulty = gameDifficulty(game.index);
+  const stageRect = stage.getBoundingClientRect();
+  const pipsPx = (game.pipsX / 100) * stageRect.width;
+  const darkStars = game.stars
+    .map((star, index) => ({ ...star, index, dx: Math.abs((star.x / 100) * stageRect.width - pipsPx) }))
+    .filter(star => !star.lit)
+    .sort((a, b) => a.dx - b.dx);
+
+  let awarded = 0;
+  let targetIndex = null;
+  if (darkStars.length) {
+    const nearest = darkStars[0];
+    const dx = nearest.dx;
+    if (difficulty.max === 5) {
+      if (dx <= 22) { awarded = 5; targetIndex = nearest.index; }
+    } else if (difficulty.max === 10) {
+      if (dx <= 12) { awarded = 10; targetIndex = nearest.index; }
+      else if (dx <= 22) { awarded = 5; targetIndex = nearest.index; }
+    } else {
+      if (dx <= 8) { awarded = 15; targetIndex = nearest.index; }
+      else if (dx <= 15) { awarded = 10; targetIndex = nearest.index; }
+      else if (dx <= 22) { awarded = 5; targetIndex = nearest.index; }
+    }
+  }
+
+  pips.classList.add('flying');
+  pips.style.bottom = '134px';
+
+  setTimeout(() => {
+    if (targetIndex !== null) {
+      game.stars[targetIndex].lit = true;
+      game.points += awarded;
+      game.lastResult = { points: awarded, message: `Treffer! +${awarded} Punkte` };
+      const star = document.querySelector(`[data-star-index="${targetIndex}"]`);
+      if (star) {
+        star.classList.remove('dark');
+        star.classList.add('lit', 'pulse');
+        setTimeout(() => star.classList.remove('pulse'), 500);
+      }
+      const burst = document.createElement('div');
+      burst.className = 'score-burst';
+      burst.textContent = `+${awarded}`;
+      burst.style.left = `${game.stars[targetIndex].x}%`;
+      burst.style.top = `${game.stars[targetIndex].y}%`;
+      stage.appendChild(burst);
+      setTimeout(() => burst.remove(), 900);
+    } else {
+      game.lastResult = { points: 0, message: 'Knapp daneben – 0 Punkte' };
+    }
+    pips.style.bottom = '24px';
+  }, 300);
+
+  setTimeout(() => {
+    game.index++;
+    pips.classList.remove('flying');
+    if (game.index >= game.rounds.length) {
+      game.finished = true;
+    } else {
+      game.phase = 'question';
+      game.solvingErrors = 0;
+    }
+    renderGame();
+  }, 950);
 }
 
 backButton.addEventListener('click', () => {
