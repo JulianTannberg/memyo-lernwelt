@@ -270,7 +270,7 @@ function normalizeName(value) {
 }
 
 function defaultSettings() {
-  return { mode: 'school', playerName: '', avatar: 'pips', accessory: 'none', schoolProfiles: {} };
+  return { mode: 'school', playerName: '', avatar: 'pips', accessory: 'none', gameMode: 'auto', schoolProfiles: {} };
 }
 
 function loadSettings() {
@@ -279,7 +279,7 @@ function loadSettings() {
     return {
       ...defaultSettings(),
       ...data,
-      schoolProfiles: Object.fromEntries(Object.entries(data.schoolProfiles || {}).map(([key, value]) => [key, { unlockedAccessories: ['none'], selectedAccessory: 'none', ...value }]))
+      schoolProfiles: Object.fromEntries(Object.entries(data.schoolProfiles || {}).map(([key, value]) => [key, { unlockedAccessories: ['none'], selectedAccessory: 'none', gameMode: 'auto', ...value }]))
     };
   } catch {
     return defaultSettings();
@@ -418,10 +418,30 @@ function maybeUnlockAccessories(profile, score) {
   }
   return newly;
 }
+function currentGameModeSetting() {
+  if (settings.mode === 'school') return currentProfile()?.gameMode || settings.gameMode || 'auto';
+  return settings.gameMode || 'auto';
+}
+function resolveGameMode(topic = currentTopic()) {
+  const chosen = currentGameModeSetting();
+  if (topic?.adaptiveTimesTable) {
+    if (settings.mode === 'school' && chosen === 'stars') return 'stars';
+    if (settings.mode === 'school' && chosen === 'runner') return 'runner';
+    const state = getAdaptiveRowState(topic);
+    return state.allMastered || state.currentIndex >= 4 ? 'runner' : 'stars';
+  }
+  return 'stars';
+}
+function gameModeLabel(mode = currentGameModeSetting()) {
+  if (mode === 'stars') return 'Sternenflug';
+  if (mode === 'runner') return 'Zahlenlauf';
+  return 'Automatisch';
+}
+
 function getSortedSchoolProfiles() {
   return Object.values(settings.schoolProfiles || {}).sort((a, b) => (b.bestScore || 0) - (a.bestScore || 0) || a.name.localeCompare(b.name));
 }
-function saveCurrentProfile(name, avatarId, accessoryId = null) {
+function saveCurrentProfile(name, avatarId, accessoryId = null, gameMode = 'auto') {
   const trimmed = String(name || '').trim();
   if (!trimmed) return { ok: false, message: 'Bitte einen Namen eingeben.' };
   const key = normalizeName(trimmed);
@@ -430,6 +450,7 @@ function saveCurrentProfile(name, avatarId, accessoryId = null) {
   settings.playerName = trimmed;
   settings.avatar = avatarId || existing.avatar || 'pips';
   settings.accessory = accessoryId || existing.selectedAccessory || 'none';
+  settings.gameMode = gameMode || existing.gameMode || 'auto';
   if (!unlockedAccessories.includes(settings.accessory)) settings.accessory = 'none';
   settings.schoolProfiles[key] = {
     name: trimmed,
@@ -439,7 +460,8 @@ function saveCurrentProfile(name, avatarId, accessoryId = null) {
     lastScore: existing.lastScore || 0,
     bestTopic: existing.bestTopic || '',
     unlockedAccessories,
-    selectedAccessory: settings.accessory
+    selectedAccessory: settings.accessory,
+    gameMode: settings.gameMode
   };
   saveSettings();
   renderProfileButton();
@@ -448,7 +470,7 @@ function saveCurrentProfile(name, avatarId, accessoryId = null) {
 function rememberSchoolScore(score, topicName) {
   if (settings.mode !== 'school' || !settings.playerName) return [];
   const key = normalizeName(settings.playerName);
-  const existing = settings.schoolProfiles[key] || { name: settings.playerName, avatar: currentAvatarId(), bestScore: 0, plays: 0, lastScore: 0, bestTopic: '', unlockedAccessories: ['none'], selectedAccessory: 'none' };
+  const existing = settings.schoolProfiles[key] || { name: settings.playerName, avatar: currentAvatarId(), bestScore: 0, plays: 0, lastScore: 0, bestTopic: '', unlockedAccessories: ['none'], selectedAccessory: 'none', gameMode: settings.gameMode || 'auto' };
   existing.name = settings.playerName;
   existing.avatar = currentAvatarId();
   existing.lastScore = score;
@@ -466,7 +488,7 @@ function rememberSchoolScore(score, topicName) {
 function renderProfileButton() {
   const avatarId = currentAvatarId();
   const label = settings.playerName || 'Schulprofil';
-  profileButton.innerHTML = `<span class="profile-avatar-wrap"><img src="${avatarAsset(avatarId,'wait')}" alt="">${accessoryBadge()}</span><span><strong>${escapeHtml(label)}</strong><small>${settings.mode === 'school' ? 'Schulmodus' : 'Zuhause'}</small></span>`;
+  profileButton.innerHTML = `<span class="profile-avatar-wrap"><img src="${avatarAsset(avatarId,'wait')}" alt="">${accessoryBadge()}</span><span><strong>${escapeHtml(label)}</strong><small>${settings.mode === 'school' ? 'Schule · ' + gameModeLabel() : 'Zuhause'}</small></span>`;
 }
 function openProfileOverlay() {
   const profiles = getSortedSchoolProfiles();
@@ -490,19 +512,28 @@ function openProfileOverlay() {
       <div class="avatar-picker">
         ${AVATARS.map(avatar => `<button class="avatar-option ${currentAvatarId() === avatar.id ? 'active' : ''}" data-avatar-choice="${avatar.id}" type="button"><img src="${avatarAsset(avatar.id,'wait')}" alt=""><span><strong>${avatar.name}</strong><small>${avatar.id === 'pips' ? 'Fledermaus' : avatar.id === 'hare' ? 'hüpft schnell' : avatar.id === 'fox' ? 'schlau & flink' : 'leicht & elegant'}</small></span></button>`).join('')}
       </div>
+      ${settings.mode === 'school' ? `<div class="game-mode-section">
+        <div class="section-head"><h3>Spielmodus</h3><small>pro Name gespeichert</small></div>
+        <div class="game-mode-picker">
+          <button class="game-mode-option ${currentGameModeSetting() === 'auto' ? 'active' : ''}" data-game-mode-choice="auto" type="button"><strong>Automatisch</strong><small>Sterne zuerst, Zahlenlauf ab höheren Reihen</small></button>
+          <button class="game-mode-option ${currentGameModeSetting() === 'stars' ? 'active' : ''}" data-game-mode-choice="stars" type="button"><strong>Sternenflug</strong><small>nach jeder Aufgabe hoch zu den Sternen</small></button>
+          <button class="game-mode-option ${currentGameModeSetting() === 'runner' ? 'active' : ''}" data-game-mode-choice="runner" type="button"><strong>Zahlenlauf</strong><small>richtige Ziffern im Jump & Run einsammeln</small></button>
+        </div>
+      </div>` : ''}
       <div class="accessory-section">
         <div class="section-head"><h3>Freigeschaltete Extras</h3><small>durch Highscores</small></div>
         <div class="accessory-picker">
           ${activeUnlocked.map(id => accessoryChoiceCard(id, currentAccessoryId() === id)).join('')}
         </div>
       </div>
-      ${profiles.length ? `<div class="saved-profiles"><h3>Gespeicherte Namen</h3><div class="saved-profile-list">${profiles.slice(0,8).map(item => `<button class="saved-profile-chip" data-profile-name="${escapeHtml(item.name)}" data-profile-avatar="${item.avatar || 'pips'}" data-profile-accessory="${item.selectedAccessory || 'none'}" type="button"><span class="saved-avatar-wrap"><span class="saved-avatar-wrap"><img src="${avatarAsset(item.avatar || 'pips','wait')}" alt="">${accessoryBadge(item.selectedAccessory || 'none')}</span>${accessoryBadge(item.selectedAccessory || 'none')}</span><span>${escapeHtml(item.name)}</span><small>${item.bestScore || 0} Punkte</small></button>`).join('')}</div></div>` : ''}
+      ${profiles.length ? `<div class="saved-profiles"><h3>Gespeicherte Namen</h3><div class="saved-profile-list">${profiles.slice(0,8).map(item => `<button class="saved-profile-chip" data-profile-name="${escapeHtml(item.name)}" data-profile-avatar="${item.avatar || 'pips'}" data-profile-accessory="${item.selectedAccessory || 'none'}" data-profile-game-mode="${item.gameMode || 'auto'}" type="button"><span class="saved-avatar-wrap"><span class="saved-avatar-wrap"><img src="${avatarAsset(item.avatar || 'pips','wait')}" alt="">${accessoryBadge(item.selectedAccessory || 'none')}</span>${accessoryBadge(item.selectedAccessory || 'none')}</span><span>${escapeHtml(item.name)}</span><small>${item.bestScore || 0} Punkte</small></button>`).join('')}</div></div>` : ''}
       <div class="button-row profile-actions"><button class="primary-button" id="saveProfileButton" type="button">Speichern und starten</button><button class="secondary-button" id="closeProfileButton" type="button">Schließen</button></div>
       <p class="overlay-note" id="profileOverlayNote">Extras gelten immer nur für den gerade gespeicherten Namen.</p>
     </div>`;
 
   let draftAvatar = currentAvatarId();
   let draftAccessory = currentAccessoryId();
+  let draftGameMode = currentGameModeSetting();
 
   function refreshAccessoryChoices(unlocked) {
     const picker = profileOverlay.querySelector('.accessory-picker');
@@ -517,13 +548,19 @@ function openProfileOverlay() {
     draftAvatar = btn.dataset.avatarChoice;
     profileOverlay.querySelectorAll('[data-avatar-choice]').forEach(item => item.classList.toggle('active', item.dataset.avatarChoice === draftAvatar));
   }));
+  profileOverlay.querySelectorAll('[data-game-mode-choice]').forEach(btn => btn.addEventListener('click', () => {
+    draftGameMode = btn.dataset.gameModeChoice;
+    profileOverlay.querySelectorAll('[data-game-mode-choice]').forEach(item => item.classList.toggle('active', item.dataset.gameModeChoice === draftGameMode));
+  }));
   profileOverlay.querySelectorAll('[data-profile-name]').forEach(btn => btn.addEventListener('click', () => {
     const key = normalizeName(btn.dataset.profileName);
     const profile = settings.schoolProfiles[key] || { unlockedAccessories: ['none'] };
     profileOverlay.querySelector('#playerNameInput').value = btn.dataset.profileName;
     draftAvatar = btn.dataset.profileAvatar || 'pips';
     draftAccessory = profile.selectedAccessory || 'none';
+    draftGameMode = profile.gameMode || 'auto';
     profileOverlay.querySelectorAll('[data-avatar-choice]').forEach(item => item.classList.toggle('active', item.dataset.avatarChoice === draftAvatar));
+    profileOverlay.querySelectorAll('[data-game-mode-choice]').forEach(item => item.classList.toggle('active', item.dataset.gameModeChoice === draftGameMode));
     refreshAccessoryChoices(ensureAccessoryList(profile));
   }));
   profileOverlay.querySelectorAll('[data-mode-choice]').forEach(btn => btn.addEventListener('click', () => {
@@ -534,8 +571,10 @@ function openProfileOverlay() {
   const nameInput = profileOverlay.querySelector('#playerNameInput');
   nameInput.addEventListener('input', () => {
     const key = normalizeName(nameInput.value);
-    const profile = settings.schoolProfiles[key] || { unlockedAccessories: ['none'], selectedAccessory: 'none' };
+    const profile = settings.schoolProfiles[key] || { unlockedAccessories: ['none'], selectedAccessory: 'none', gameMode: settings.gameMode || 'auto' };
     if (!ensureAccessoryList(profile).includes(draftAccessory)) draftAccessory = profile.selectedAccessory || 'none';
+    draftGameMode = profile.gameMode || 'auto';
+    profileOverlay.querySelectorAll('[data-game-mode-choice]').forEach(item => item.classList.toggle('active', item.dataset.gameModeChoice === draftGameMode));
     refreshAccessoryChoices(ensureAccessoryList(profile));
   });
   const close = () => { profileOverlay.classList.add('hidden'); profileOverlay.setAttribute('aria-hidden', 'true'); profileOverlay.innerHTML = ''; };
@@ -544,13 +583,14 @@ function openProfileOverlay() {
   profileOverlay.onclick = event => { if (event.target === profileOverlay) close(); };
   refreshAccessoryChoices(activeUnlocked);
   const saveProfile = () => {
-    const result = saveCurrentProfile(profileOverlay.querySelector('#playerNameInput').value, draftAvatar, draftAccessory);
+    const result = saveCurrentProfile(profileOverlay.querySelector('#playerNameInput').value, draftAvatar, draftAccessory, draftGameMode);
     const note = profileOverlay.querySelector('#profileOverlayNote');
     if (!result.ok) {
       note.textContent = result.message;
       return;
     }
     note.textContent = 'Gespeichert.';
+    if (view.screen === 'topic') game = null;
     render();
     setTimeout(close, 250);
   };
@@ -604,7 +644,7 @@ function renderHome() {
           </div>
         </div>
         <div class="player-card-meta">
-          <div><span>Aktive Figur</span><strong>${escapeHtml(currentAvatar().name)}</strong></div><div><span>Extra</span><strong>${escapeHtml(currentAccessory().name)}</strong></div>
+          <div><span>Aktive Figur</span><strong>${escapeHtml(currentAvatar().name)}</strong></div><div><span>Spielmodus</span><strong>${escapeHtml(gameModeLabel())}</strong></div>
           <div><span>Persönlicher Highscore</span><strong>${activeProfile?.bestScore || 0}</strong></div>
           <div><span>Gespielte Runden</span><strong>${activeProfile?.plays || 0}</strong></div><div><span>Freigeschaltet</span><strong>${ensureAccessoryList(activeProfile || {}).length - 1}</strong></div>
         </div>
@@ -695,7 +735,7 @@ function renderTopic() {
       </div>
       <div class="game-page-meta">
         <span class="pill strong">${topic.questions.length} Aufgaben im Pool</span>
-        <span class="pill">Fortschritt ${value}%</span>
+        <span class="pill">Fortschritt ${value}%</span><span class="pill">${resolveGameMode(topic) === 'runner' ? 'Zahlenlauf' : 'Sternenflug'}</span>${settings.mode === 'school' ? '<button class="mode-change-button" id="changeGameModeButton" type="button">Spielmodus ändern</button>' : ''}
       </div>
     </section>
     <div class="topic-layout game-focus-layout" style="--accent:${subject.color}">
@@ -705,6 +745,7 @@ function renderTopic() {
       </section>
     </div>`;
   renderTopicContent();
+  document.querySelector('#changeGameModeButton')?.addEventListener('click', openProfileOverlay);
 }
 function tabButton(id,label) { return ''; }
 
@@ -913,7 +954,9 @@ function startGame() {
     rounds: buildGameRounds(topic, 12),
     index: 0,
     points: 0,
+    mode: resolveGameMode(topic),
     stars: createStars(),
+    runner: null,
     phase: 'question',
     pipsX: 50,
     dir: 1,
@@ -921,7 +964,7 @@ function startGame() {
     finished: false,
     solvingErrors: 0,
     lastResult: null,
-    summary: { correctAnswers: 0, totalErrors: 0 },
+    summary: { correctAnswers: 0, totalErrors: 0, runnerCompleted: 0, waterFalls: 0, wrongNumbers: 0 },
     scoreSaved: false,
     newUnlocks: []
   };
@@ -933,7 +976,7 @@ function renderGame() {
   const content = document.querySelector('#topicContent');
 
   if (game.finished) {
-    const lit = game.stars.filter(star => star.lit).length;
+    const lit = game.mode === 'runner' ? game.summary.runnerCompleted : game.stars.filter(star => star.lit).length;
     const maxPoints = game.rounds.reduce((sum, _, i) => sum + gameDifficulty(i).max, 0);
     if (!game.scoreSaved) {
       game.newUnlocks = rememberSchoolScore(game.points, currentTopic()?.name || '');
@@ -942,17 +985,17 @@ function renderGame() {
     const activeProfile = settings.playerName ? settings.schoolProfiles[normalizeName(settings.playerName)] : null;
     content.innerHTML = `
       <div class="game-summary-screen">
-        <div class="summary-stars">${game.stars.map(star => `<span class="${star.lit ? 'lit' : ''}">★</span>`).join('')}</div>
+        <div class="summary-stars">${game.mode === 'runner' ? Array.from({length: game.rounds.length}, (_, i) => `<span class="${i < game.summary.runnerCompleted ? 'lit' : ''}">●</span>`).join('') : game.stars.map(star => `<span class="${star.lit ? 'lit' : ''}">★</span>`).join('')}</div>
         <p class="eyebrow">Runde abgeschlossen</p>
         <h2>${game.points} Punkte</h2>
-        <p class="lead">${settings.playerName ? `${escapeHtml(settings.playerName)}, ` : ''}${lit} von ${game.stars.length} Sternen leuchten.</p>
+        <p class="lead">${settings.playerName ? `${escapeHtml(settings.playerName)}, ` : ''}${game.mode === 'runner' ? `${lit} Zahlenläufe geschafft.` : `${lit} von ${game.stars.length} Sternen leuchten.`}</p>
         ${activeProfile ? `<p class="summary-highscore">Bester Stand von ${escapeHtml(activeProfile.name)}: <strong>${activeProfile.bestScore || 0} Punkte</strong></p>` : ''}
         ${game.newUnlocks?.length ? `<div class="unlock-box"><strong>Neu freigeschaltet:</strong> ${game.newUnlocks.map(item => `${item.icon} ${escapeHtml(item.name)}`).join(' · ')}</div>` : ''}
         <div class="game-summary-grid">
           <div class="summary-box"><span>Aufgaben</span><strong>${game.summary.correctAnswers}/${game.rounds.length}</strong></div>
-          <div class="summary-box"><span>Sterne</span><strong>${lit}/${game.stars.length}</strong></div>
+          <div class="summary-box"><span>${game.mode === 'runner' ? 'Zahlenläufe' : 'Sterne'}</span><strong>${game.mode === 'runner' ? lit : `${lit}/${game.stars.length}`}</strong></div>
           <div class="summary-box"><span>Maximal</span><strong>${maxPoints}</strong></div>
-          <div class="summary-box"><span>Lösefehler</span><strong>${game.summary.totalErrors}</strong></div>
+          <div class="summary-box"><span>${game.mode === 'runner' ? 'Wasserstürze' : 'Lösefehler'}</span><strong>${game.mode === 'runner' ? game.summary.waterFalls : game.summary.totalErrors}</strong></div>
         </div>
         <div class="button-row summary-buttons">
           <button class="primary-button" id="restartGame" type="button">Noch einmal spielen</button>
@@ -961,6 +1004,11 @@ function renderGame() {
       </div>`;
     document.querySelector('#restartGame').addEventListener('click',()=>{game=null;renderTopic();});
     document.querySelector('#backLearn').addEventListener('click',()=>{game=null; view.screen='subject'; view.topicId=null; view.tab='game'; render();});
+    return;
+  }
+
+  if (game.mode === 'runner') {
+    renderRunnerGame(content);
     return;
   }
 
@@ -1074,7 +1122,8 @@ function checkGameAnswer(button, q) {
   if (button.dataset.gameAnswer === q.correct) {
     game.summary.correctAnswers++;
     game.solvingErrors = 0;
-    game.phase = 'run';
+    game.phase = game.mode === 'runner' ? 'runner' : 'run';
+    if (game.mode === 'runner') game.runner = createRunnerRound(q);
     if (currentTopic().questions.some(item => item.id === q.id)) {
       markSolved(currentTopic(), q.id);
       recordQuestionResult(currentTopic(), q.id, true);
@@ -1091,6 +1140,282 @@ function checkGameAnswer(button, q) {
       feedback.textContent = `Noch nicht. ${q.hint}`;
     }
   }
+}
+
+function createRunnerRound(question) {
+  const answerDigits = String(question.correct).replace(/[^0-9]/g, '').split('');
+  const digits = answerDigits.length ? answerDigits : ['0'];
+  const gaps = [
+    { start: 540, width: 125 },
+    { start: 1120, width: 145 },
+    { start: 1710, width: 130 }
+  ];
+  const worldLength = 2250;
+  const safeX = (value) => {
+    let x = value;
+    for (const gap of gaps) {
+      if (x > gap.start - 45 && x < gap.start + gap.width + 45) x = gap.start + gap.width + 95;
+    }
+    return x;
+  };
+  const items = [];
+  const basePositions = digits.length === 1 ? [850] : digits.length === 2 ? [430, 1380] : [380, 920, 1580];
+  const correctPositions = digits.map((_, index) => safeX(basePositions[index] || (380 + index * 560)));
+  digits.forEach((digit, index) => {
+    const x = correctPositions[index];
+    items.push({ id: `correct-${index}`, digit, x, y: index % 2 === 0 ? 38 : 92, kind: 'correct', order: index, collected: false, popped: false });
+    const wrongA = String((Number(digit) + 3 + index) % 10);
+    const wrongB = String((Number(digit) + 7 - index + 10) % 10);
+    items.push({ id: `wrong-a-${index}`, digit: wrongA === digit ? String((Number(digit) + 1) % 10) : wrongA, x: x - 145, y: 54, kind: 'wrong', collected: false, popped: false });
+    items.push({ id: `wrong-b-${index}`, digit: wrongB === digit ? String((Number(digit) + 2) % 10) : wrongB, x: x + 135, y: 104, kind: 'wrong', collected: false, popped: false });
+  });
+  for (let i = 0; i < 5; i++) {
+    const digit = String((i * 3 + 4) % 10);
+    items.push({ id: `extra-${i}`, digit, x: safeX(760 + i * 285), y: i % 2 ? 46 : 112, kind: 'wrong', collected: false, popped: false });
+  }
+  return {
+    answerDigits: digits,
+    collected: [],
+    items,
+    gaps,
+    worldLength,
+    scroll: 0,
+    y: 0,
+    velocityY: 0,
+    grounded: true,
+    lastTs: null,
+    resetting: false,
+    completed: false,
+    fixedPlayerX: 0,
+    groundHeight: 62
+  };
+}
+
+function runnerGroundSegments(runner) {
+  const segments = [];
+  let cursor = 0;
+  for (const gap of runner.gaps) {
+    if (gap.start > cursor) segments.push({ start: cursor, width: gap.start - cursor });
+    cursor = gap.start + gap.width;
+  }
+  if (cursor < runner.worldLength) segments.push({ start: cursor, width: runner.worldLength - cursor });
+  return segments;
+}
+
+function renderRunnerGame(content) {
+  cleanupGameInput();
+  const q = game.rounds[game.index];
+  const difficulty = gameDifficulty(game.index);
+  const questionVisible = game.phase === 'question';
+  const runner = game.runner;
+  const collected = runner?.collected || [];
+  const targetDigits = runner?.answerDigits || String(q.correct).replace(/[^0-9]/g, '').split('');
+  const rowState = currentTopic()?.adaptiveTimesTable ? getAdaptiveRowState(currentTopic()) : null;
+
+  content.innerHTML = `
+    <div class="runner-game-shell">
+      <div class="runner-stage ${questionVisible ? 'question-phase' : ''}" id="runnerStage" aria-label="Zahlenlauf">
+        <div class="runner-sky"></div>
+        <div class="runner-hud">
+          <span><strong>${game.points}</strong> Punkte</span>
+          <span>${game.index + 1}/${game.rounds.length}</span>
+          <span class="runner-answer-slots" aria-label="gesammelte Zahl">${targetDigits.map((digit, index) => `<b class="${collected[index] ? 'filled' : ''}">${collected[index] || '·'}</b>`).join('')}</span>
+        </div>
+
+        ${questionVisible ? `
+          <section class="game-question-card runner-question-card" aria-live="polite">
+            <div class="question-topline">
+              <span class="difficulty-pill">${difficulty.label}</span>
+              <span>${rowState ? `Aktuell: ${rowState.allMastered ? 'alle Reihen gemischt' : rowState.currentRow + 'er-Reihe'}` : 'Zahlenlauf'}</span>
+            </div>
+            ${game.lastResult ? `<div class="result-line ${game.lastResult.points > 0 ? 'good' : 'miss'}">${escapeHtml(game.lastResult.message)}</div>` : ''}
+            <div class="game-question">${escapeHtml(q.q)}</div>
+            <div class="game-answers">
+              ${q.options.map(o => `<button class="game-answer-button" data-game-answer="${escapeHtml(o)}" type="button">${escapeHtml(o)}</button>`).join('')}
+            </div>
+            <div class="game-feedback ${game.solvingErrors ? 'show' : ''}" id="gameFeedback">${game.solvingErrors ? `Noch nicht. ${escapeHtml(q.hint)}` : ''}</div>
+          </section>` : `
+          <div class="runner-instruction">Tippen, klicken oder Leertaste: springen · Sammle <strong>${targetDigits.join('')}</strong> in der richtigen Reihenfolge.</div>
+          <div class="runner-world" id="runnerWorld">
+            ${runnerGroundSegments(runner).map(segment => `<div class="runner-ground-segment" style="left:${segment.start}px;width:${segment.width}px"></div>`).join('')}
+            ${runner.gaps.map(gap => `<div class="runner-water" style="left:${gap.start}px;width:${gap.width}px"><span></span><span></span><span></span></div>`).join('')}
+            ${runner.items.map(item => `<div class="runner-number ${item.kind} ${item.collected ? 'collected' : ''} ${item.popped ? 'popped' : ''}" data-runner-item="${item.id}" style="left:${item.x}px;bottom:${runner.groundHeight + item.y}px">${item.digit}</div>`).join('')}
+            <div class="runner-finish" style="left:${runner.worldLength - 120}px">Ziel</div>
+          </div>`}
+
+        <div class="runner-ground-base"></div>
+        <div id="runnerPlayer" class="runner-player ${questionVisible ? 'waiting' : 'running'}">
+          <img src="${avatarAsset(currentAvatarId(), questionVisible ? 'wait' : 'run-a')}" alt="${escapeHtml(currentAvatar().name)}">
+          ${accessoryBadge()}
+        </div>
+        <div class="runner-splash hidden" id="runnerSplash">Platsch! Die gesammelte Zahl ist weg.</div>
+      </div>
+    </div>`;
+
+  content.querySelectorAll('[data-game-answer]').forEach(btn => btn.addEventListener('click', () => checkGameAnswer(btn, q)));
+  if (!questionVisible) mountRunnerGame();
+}
+
+function mountRunnerGame() {
+  const stage = document.querySelector('#runnerStage');
+  const player = document.querySelector('#runnerPlayer');
+  const world = document.querySelector('#runnerWorld');
+  if (!stage || !player || !world || !game?.runner) return;
+  const runner = game.runner;
+  runner.fixedPlayerX = Math.max(92, stage.clientWidth * 0.18);
+
+  const jump = event => {
+    if (event) event.preventDefault();
+    runnerJump();
+  };
+  activeGameKeyHandler = event => {
+    if ((event.code === 'Space' || event.code === 'ArrowUp' || event.code === 'Enter') && game?.phase === 'runner') jump(event);
+  };
+  window.addEventListener('keydown', activeGameKeyHandler);
+  stage.addEventListener('pointerdown', jump);
+
+  const frame = timestamp => updateRunnerFrame(timestamp);
+  game.loopId = requestAnimationFrame(frame);
+}
+
+function runnerJump() {
+  const runner = game?.runner;
+  if (!runner || game.phase !== 'runner' || runner.resetting || runner.completed) return;
+  if (runner.grounded || runner.y < 8) {
+    runner.velocityY = 510;
+    runner.grounded = false;
+  }
+}
+
+function runnerIsOverWater(runner, worldX) {
+  return runner.gaps.some(gap => worldX >= gap.start && worldX <= gap.start + gap.width);
+}
+
+function updateRunnerFrame(timestamp) {
+  if (!game || game.phase !== 'runner' || !game.runner) return;
+  const runner = game.runner;
+  const stage = document.querySelector('#runnerStage');
+  const player = document.querySelector('#runnerPlayer');
+  const world = document.querySelector('#runnerWorld');
+  if (!stage || !player || !world) return;
+
+  if (runner.lastTs == null) runner.lastTs = timestamp;
+  const dt = Math.min((timestamp - runner.lastTs) / 1000, 0.04);
+  runner.lastTs = timestamp;
+  const speed = 142 + Math.min(game.index, 11) * 3;
+  runner.scroll += speed * dt;
+  runner.velocityY -= 1120 * dt;
+  runner.y += runner.velocityY * dt;
+  const worldX = runner.scroll + runner.fixedPlayerX;
+  const overWater = runnerIsOverWater(runner, worldX);
+
+  if (!overWater && runner.y <= 0) {
+    runner.y = 0;
+    runner.velocityY = 0;
+    runner.grounded = true;
+  } else if (overWater && runner.y <= -18 && !runner.resetting) {
+    runnerWaterReset();
+    return;
+  } else {
+    runner.grounded = false;
+  }
+
+  world.style.transform = `translate3d(${-runner.scroll}px,0,0)`;
+  player.style.left = `${runner.fixedPlayerX}px`;
+  player.style.bottom = `${runner.groundHeight + Math.max(-42, runner.y)}px`;
+  player.classList.toggle('jumping', runner.y > 10);
+
+  for (const item of runner.items) {
+    if (item.collected || item.popped) continue;
+    const dx = Math.abs(item.x - worldX);
+    const dy = Math.abs(item.y - runner.y);
+    if (dx < 42 && dy < 64) runnerHitNumber(item);
+  }
+
+  const maxScroll = runner.worldLength - stage.clientWidth + 120;
+  if (runner.scroll > maxScroll && !runner.completed && !runner.resetting) {
+    runnerWaterReset('Noch nicht alle richtigen Ziffern gesammelt. Neuer Versuch!');
+    return;
+  }
+  game.loopId = requestAnimationFrame(updateRunnerFrame);
+}
+
+function runnerHitNumber(item) {
+  const runner = game?.runner;
+  if (!runner || item.collected || item.popped) return;
+  const expectedIndex = runner.collected.length;
+  const isCorrect = item.kind === 'correct' && item.order === expectedIndex && item.digit === runner.answerDigits[expectedIndex];
+  const element = document.querySelector(`[data-runner-item="${item.id}"]`);
+  if (isCorrect) {
+    item.collected = true;
+    runner.collected.push(item.digit);
+    element?.classList.add('collected');
+    const slots = document.querySelectorAll('.runner-answer-slots b');
+    slots.forEach((slot, index) => {
+      slot.textContent = runner.collected[index] || '·';
+      slot.classList.toggle('filled', Boolean(runner.collected[index]));
+    });
+    if (runner.collected.length === runner.answerDigits.length) finishRunnerRound();
+  } else {
+    item.popped = true;
+    game.summary.wrongNumbers++;
+    element?.classList.add('popped');
+  }
+}
+
+function runnerWaterReset(message = 'Platsch! Die gesammelte Zahl ist weg.') {
+  const runner = game?.runner;
+  if (!runner || runner.resetting) return;
+  runner.resetting = true;
+  game.summary.waterFalls++;
+  cleanupGameInput();
+  const splash = document.querySelector('#runnerSplash');
+  const player = document.querySelector('#runnerPlayer');
+  if (splash) {
+    splash.textContent = message;
+    splash.classList.remove('hidden');
+  }
+  player?.classList.add('in-water');
+  setTimeout(() => {
+    runner.collected = [];
+    runner.items.forEach(item => {
+      if (item.kind === 'correct') { item.collected = false; item.popped = false; }
+    });
+    runner.scroll = 0;
+    runner.y = 0;
+    runner.velocityY = 0;
+    runner.grounded = true;
+    runner.lastTs = null;
+    runner.resetting = false;
+    renderGame();
+  }, 900);
+}
+
+function finishRunnerRound() {
+  const runner = game?.runner;
+  if (!runner || runner.completed) return;
+  runner.completed = true;
+  cleanupGameInput();
+  const difficulty = gameDifficulty(game.index);
+  const award = difficulty.max;
+  game.points += award;
+  game.summary.runnerCompleted++;
+  game.lastResult = { points: award, message: `Zahl ${runner.answerDigits.join('')} eingesammelt! +${award} Punkte` };
+  const stage = document.querySelector('#runnerStage');
+  const banner = document.createElement('div');
+  banner.className = 'runner-success';
+  banner.textContent = `Geschafft: ${runner.answerDigits.join('')}  ·  +${award}`;
+  stage?.appendChild(banner);
+  setTimeout(() => {
+    game.index++;
+    game.runner = null;
+    if (game.index >= game.rounds.length) game.finished = true;
+    else {
+      game.phase = 'question';
+      game.solvingErrors = 0;
+    }
+    renderGame();
+  }, 950);
 }
 
 function triggerPipsFlight() {

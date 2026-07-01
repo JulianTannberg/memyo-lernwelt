@@ -1,16 +1,17 @@
-MEMYO LERNWELT – TESTVERSION 13
+MEMYO LERNWELT – TESTVERSION 14
 
-NEU IN VERSION 13:
-- Handy jetzt für Querformat / Vollbild vorbereitet
-- PWA-Manifest auf landscape + fullscreen gestellt
-- beim Start eines Themas wird auf dem Handy versucht, Vollbild und Querformat zu aktivieren
-- Figuren wechseln beim Laufen nicht mehr hektisch zwischen zwei Bildern
-- beim Laufen bleibt jetzt ein festes Laufbild sichtbar
-- Hochspringen / Hochfliegen noch langsamer
-- Rennen minimal langsamer
-- Extras / Accessoires gelten jetzt nur noch pro gespeichertem Namen
+NEU IN VERSION 14:
+- für höhere 1x1-Stufen gibt es jetzt einen Zahlenlauf als Jump & Run
+- nach der richtig gelösten Aufgabe werden die Ziffern des Ergebnisses eingesammelt
+- richtige Ziffern müssen in der richtigen Reihenfolge gesammelt werden
+- falsche Zahlen zerplatzen beim Kontakt
+- fällt die Figur ins Wasser, gehen die bereits gesammelten Ziffern verloren
+- im Schulmodus ist der Spielmodus pro Name umschaltbar:
+  * Automatisch: leichte Reihen Sternenflug, höhere Reihen Zahlenlauf
+  * Sternenflug
+  * Zahlenlauf
+- Querformat und Vollbild bleiben vorbereitet
 
 HINWEIS:
-- Bitte den kompletten Ordnerinhalt hochladen und vorhandene Dateien ersetzen.
-- Danach die Seite mit ?v=13 öffnen.
-- Spätere Accessoires können wir als transparente PNGs über die Figur legen.
+- kompletten Ordnerinhalt inklusive assets hochladen und vorhandene Dateien ersetzen
+- danach die Seite mit ?v=14 öffnen
