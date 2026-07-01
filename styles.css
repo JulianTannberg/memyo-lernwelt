@@ -1400,3 +1400,25 @@ html, body { min-height: 100dvh; overscroll-behavior: none; }
   cursor: pointer;
   font-size: .82rem;
 }
+
+
+/* v15 topbar spacing */
+.topbar {
+  grid-template-columns: 52px minmax(200px, 1fr) auto;
+}
+.topbar-actions {
+  justify-self: end;
+  margin-left: auto;
+  padding-left: 18px;
+}
+.profile-chip {
+  margin-left: 8px;
+}
+@media (max-width: 900px) {
+  .topbar {
+    grid-template-columns: 46px minmax(120px, 1fr) auto;
+  }
+  .topbar-actions {
+    padding-left: 10px;
+  }
+}

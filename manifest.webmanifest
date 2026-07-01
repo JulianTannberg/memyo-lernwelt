@@ -2,7 +2,7 @@
   "name": "memyo Lernwelt",
   "short_name": "Lernwelt",
   "description": "Lernen, üben und spielen in deinem Tempo.",
-  "start_url": "./?v=14",
+  "start_url": "./?v=15",
   "display": "fullscreen",
   "background_color": "#f8fbfd",
   "theme_color": "#94bbd9",

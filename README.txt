@@ -1,17 +1,10 @@
-MEMYO LERNWELT – TESTVERSION 14
+MEMYO LERNWELT – TESTVERSION 15
 
-NEU IN VERSION 14:
-- für höhere 1x1-Stufen gibt es jetzt einen Zahlenlauf als Jump & Run
-- nach der richtig gelösten Aufgabe werden die Ziffern des Ergebnisses eingesammelt
-- richtige Ziffern müssen in der richtigen Reihenfolge gesammelt werden
-- falsche Zahlen zerplatzen beim Kontakt
-- fällt die Figur ins Wasser, gehen die bereits gesammelten Ziffern verloren
-- im Schulmodus ist der Spielmodus pro Name umschaltbar:
-  * Automatisch: leichte Reihen Sternenflug, höhere Reihen Zahlenlauf
-  * Sternenflug
-  * Zahlenlauf
-- Querformat und Vollbild bleiben vorbereitet
+NEU IN VERSION 15:
+- Benutzer-/Profilbereich im Kopf weiter nach rechts geschoben
+- mehr Abstand zwischen memyo-Logo und Benutzerchip
+- bessere Verteilung der oberen Leiste besonders bei kleinerem Fenster
 
 HINWEIS:
-- kompletten Ordnerinhalt inklusive assets hochladen und vorhandene Dateien ersetzen
-- danach die Seite mit ?v=14 öffnen
+- Bitte den kompletten Ordnerinhalt hochladen und vorhandene Dateien ersetzen.
+- Danach die Seite mit ?v=15 öffnen.
