@@ -1,10 +1,10 @@
-const CACHE = 'memyo-lernwelt-v15';
+const CACHE = 'memyo-lernwelt-v16';
 const ASSETS = [
   './',
   './index.html',
-  './styles.css?v=15',
-  './app.js?v=15',
-  './manifest.webmanifest?v=15?v=15',
+  './styles.css?v=16',
+  './app.js?v=16',
+  './manifest.webmanifest?v=16',
   './icon-192.png',
   './icon-512.png',
     './assets/pips-wait.png',

@@ -688,9 +688,6 @@ async function enterImmersiveMode() {
       await document.documentElement.requestFullscreen();
     }
   } catch (error) {}
-  try {
-    if (screen.orientation?.lock) await screen.orientation.lock('landscape');
-  } catch (error) {}
 }
 
 function renderSubject() {
