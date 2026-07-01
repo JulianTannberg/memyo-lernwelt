@@ -1,9 +1,16 @@
-MEMYO LERNWELT – TESTVERSION 12
+MEMYO LERNWELT – TESTVERSION 13
 
-BEHOBEN:
-- Der Speichern-Button in der Namens- und Figurenwahl war durch eine fehlende Akzentfarbe unsichtbar.
-- Der Button ist jetzt deutlich sichtbar und heißt „Speichern und starten“.
-- Die Aktionsleiste bleibt beim Scrollen unten sichtbar.
-- Die Eingabetaste speichert ebenfalls.
+NEU IN VERSION 13:
+- Handy jetzt für Querformat / Vollbild vorbereitet
+- PWA-Manifest auf landscape + fullscreen gestellt
+- beim Start eines Themas wird auf dem Handy versucht, Vollbild und Querformat zu aktivieren
+- Figuren wechseln beim Laufen nicht mehr hektisch zwischen zwei Bildern
+- beim Laufen bleibt jetzt ein festes Laufbild sichtbar
+- Hochspringen / Hochfliegen noch langsamer
+- Rennen minimal langsamer
+- Extras / Accessoires gelten jetzt nur noch pro gespeichertem Namen
 
-Bitte gesamten Ordnerinhalt hochladen und danach mit ?v=12 öffnen.
+HINWEIS:
+- Bitte den kompletten Ordnerinhalt hochladen und vorhandene Dateien ersetzen.
+- Danach die Seite mit ?v=13 öffnen.
+- Spätere Accessoires können wir als transparente PNGs über die Figur legen.

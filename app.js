@@ -232,8 +232,8 @@ function mixedTimesTopic(id, name, rows, gameTier, count) {
   return item;
 }
 
-const STORAGE_KEY = 'memyo-lernwelt-progress-v11';
-const SETTINGS_KEY = 'memyo-lernwelt-settings-v11';
+const STORAGE_KEY = 'memyo-lernwelt-progress-v13';
+const SETTINGS_KEY = 'memyo-lernwelt-settings-v13';
 const AVATARS = [
   { id: 'pips', name: 'Pips' },
   { id: 'hare', name: 'Hase' },
@@ -388,7 +388,7 @@ function ensureAccessoryList(profile) {
 }
 function currentAccessoryId() {
   const profile = currentProfile();
-  const saved = profile?.selectedAccessory || settings.accessory || 'none';
+  const saved = profile?.selectedAccessory || 'none';
   const unlocked = ensureAccessoryList(profile || {});
   return unlocked.includes(saved) ? saved : 'none';
 }
@@ -448,7 +448,7 @@ function saveCurrentProfile(name, avatarId, accessoryId = null) {
 function rememberSchoolScore(score, topicName) {
   if (settings.mode !== 'school' || !settings.playerName) return [];
   const key = normalizeName(settings.playerName);
-  const existing = settings.schoolProfiles[key] || { name: settings.playerName, avatar: currentAvatarId(), bestScore: 0, plays: 0, lastScore: 0, bestTopic: '', unlockedAccessories: ['none'], selectedAccessory: settings.accessory || 'none' };
+  const existing = settings.schoolProfiles[key] || { name: settings.playerName, avatar: currentAvatarId(), bestScore: 0, plays: 0, lastScore: 0, bestTopic: '', unlockedAccessories: ['none'], selectedAccessory: 'none' };
   existing.name = settings.playerName;
   existing.avatar = currentAvatarId();
   existing.lastScore = score;
@@ -498,7 +498,7 @@ function openProfileOverlay() {
       </div>
       ${profiles.length ? `<div class="saved-profiles"><h3>Gespeicherte Namen</h3><div class="saved-profile-list">${profiles.slice(0,8).map(item => `<button class="saved-profile-chip" data-profile-name="${escapeHtml(item.name)}" data-profile-avatar="${item.avatar || 'pips'}" data-profile-accessory="${item.selectedAccessory || 'none'}" type="button"><span class="saved-avatar-wrap"><span class="saved-avatar-wrap"><img src="${avatarAsset(item.avatar || 'pips','wait')}" alt="">${accessoryBadge(item.selectedAccessory || 'none')}</span>${accessoryBadge(item.selectedAccessory || 'none')}</span><span>${escapeHtml(item.name)}</span><small>${item.bestScore || 0} Punkte</small></button>`).join('')}</div></div>` : ''}
       <div class="button-row profile-actions"><button class="primary-button" id="saveProfileButton" type="button">Speichern und starten</button><button class="secondary-button" id="closeProfileButton" type="button">Schließen</button></div>
-      <p class="overlay-note" id="profileOverlayNote">Ab 20 Punkten werden erste Extras freigeschaltet.</p>
+      <p class="overlay-note" id="profileOverlayNote">Extras gelten immer nur für den gerade gespeicherten Namen.</p>
     </div>`;
 
   let draftAvatar = currentAvatarId();
@@ -531,6 +531,13 @@ function openProfileOverlay() {
     saveSettings();
     openProfileOverlay();
   }));
+  const nameInput = profileOverlay.querySelector('#playerNameInput');
+  nameInput.addEventListener('input', () => {
+    const key = normalizeName(nameInput.value);
+    const profile = settings.schoolProfiles[key] || { unlockedAccessories: ['none'], selectedAccessory: 'none' };
+    if (!ensureAccessoryList(profile).includes(draftAccessory)) draftAccessory = profile.selectedAccessory || 'none';
+    refreshAccessoryChoices(ensureAccessoryList(profile));
+  });
   const close = () => { profileOverlay.classList.add('hidden'); profileOverlay.setAttribute('aria-hidden', 'true'); profileOverlay.innerHTML = ''; };
   profileOverlay.querySelector('#closeProfileOverlay').addEventListener('click', close);
   profileOverlay.querySelector('#closeProfileButton').addEventListener('click', close);
@@ -631,7 +638,20 @@ function subjectCard(subject) {
 }
 
 function openSubject(id) { view = { screen:'subject', subjectId:id, topicId:null, tab:'game' }; render(); }
-function openTopic(id) { view.screen='topic'; view.topicId=id; view.tab='game'; practice=null; game=null; render(); }
+function openTopic(id) { view.screen='topic'; view.topicId=id; view.tab='game'; practice=null; game=null; render(); enterImmersiveMode(); }
+
+async function enterImmersiveMode() {
+  const isPhoneLike = window.matchMedia('(max-width: 900px)').matches;
+  if (!isPhoneLike) return;
+  try {
+    if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+      await document.documentElement.requestFullscreen();
+    }
+  } catch (error) {}
+  try {
+    if (screen.orientation?.lock) await screen.orientation.lock('landscape');
+  } catch (error) {}
+}
 
 function renderSubject() {
   const subject = currentSubject();
@@ -1032,7 +1052,7 @@ function startPipsRun() {
   let last = null;
   const minX = 9;
   const maxX = 91;
-  const speed = 0.056 + Math.min(game.index, 11) * 0.0019;
+  const speed = 0.049 + Math.min(game.index, 11) * 0.0015;
 
   const frame = (ts) => {
     if (!game || game.phase !== 'run') return;
@@ -1118,7 +1138,7 @@ function triggerPipsFlight() {
     { transform: pips.classList.contains('facing-left') ? `scaleX(-1) translateY(-${flightDistance}px)` : `translateY(-${flightDistance}px)`, offset: .5 },
     { transform: pips.classList.contains('facing-left') ? 'scaleX(-1) translateY(0)' : 'translateY(0)' }
   ], {
-    duration: 2350,
+    duration: 2950,
     easing: 'cubic-bezier(.32,.72,.28,1)'
   });
 

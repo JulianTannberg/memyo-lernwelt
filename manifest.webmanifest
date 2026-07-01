@@ -2,13 +2,22 @@
   "name": "memyo Lernwelt",
   "short_name": "Lernwelt",
   "description": "Lernen, üben und spielen in deinem Tempo.",
-  "start_url": "./",
-  "display": "standalone",
+  "start_url": "./?v=13",
+  "display": "fullscreen",
   "background_color": "#f8fbfd",
   "theme_color": "#94bbd9",
   "lang": "de",
   "icons": [
-    {"src":"icon-192.png","sizes":"192x192","type":"image/png"},
-    {"src":"icon-512.png","sizes":"512x512","type":"image/png"}
-  ]
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "orientation": "landscape"
 }
